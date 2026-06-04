@@ -1,0 +1,965 @@
+# Flow Engine for Minds - Work Automata (FemWA)
+# 语法规范与剧本编写指南（使用者文档）
+
+## 核心设计哲学
+
+1. **Scope = 空间/视野（物理隔间）**
+   处在同一 scope 的角色才能共享上下文（对话记录）。不同 scope 的角色天然隔离，互不可见。
+2. **Vars = 控制参数 **
+   用以控制流程图走向和角色视野。
+3. **上下文不是变量**
+   人类与 AI 共享的是上下文。除非需要程序操作变量，角色间对话无需显式传递变量——能看到同一个上下文即可。
+   非必要不要求 AI 输出变量，以免打断思路。记住：**上下文不是变量**。
+
+## 基本约定
+- **拓展名**：FEM语言的文件格式为.fems(s是script)，编译器将读入.fems文件，并按照我们约定的规则解析。
+- **缩进**：缩进敏感，缩进表示从属关系（prompt 属于哪个 @agent，分支属于哪个 fork）。
+- **换行**：换行部分敏感，在fork, for, par等语法中，必须严格按照规定的换行和缩进格式写。
+- **大小写**：大小写敏感，变量名、action 名区分大小写。
+- **注释**：行内可使用 `#` 或 `//`。
+- **@ 符号**：Actor 实体名字永远带 `@`。定义、引用、传参均须保留。不然编译器无法认为那是@actor类型。
+- **文件路径与文本值**：
+  所有文本字段（`system_safety`、`output_style`、`prompt`、`code` 路径等）遵循：
+  - `file:"path/to/file"` → 读取文件内容（文件不存在则报错）
+  - 裸文本（无引号或普通引号） → 字面量字符串
+  - `|` 后换行缩进 → 多行字面量字符串
+
+### 符号速查
+
+| 符号 | 语义 | 示例 | 助记 |
+|---|---|---|---|
+| `action` | 定义动作 | `action wolf_kill @ai(wolf)` | 类似 Python 的 `def` |
+| `@` | 引用/指向 | `@wolfClaire`, `@ellis.type` | @某人 |
+| `()` | 动作参数/输入 | `@ai(wolf)`, `@func(sys.spawn)` | 函数参数 |
+| `[]` | Node 标签 | `[A]`, `[START]` | 位置标记 |
+| `{}` | 变量替换 | `{alive_players}` | 模板插值 |
+| `<<>>` | 输出信号 | `<<VOTE: 3>>` | 信号弹 |
+| `&` | Module 引用 | `&CoderSandbox(...)` | 打包带走 |
+| `->` | 流程连接 | `[A] -> [B]` | 方向 |
+
+为了方便中文输入，以下字符在 FEM 中具有同等语法效力：
+
+| 方便符号 | 英文符号 | 说明 |
+|-|-|-|
+| `：` | `:` | 冒号 |
+| `，` | `,` | 逗号 |
+| `“` `”` | `"` | 引号（文件路径和文本识别） |
+| `（）` | `()` | 圆括号 |
+| `【】` | `[]` | 方括号 |
+| `｜` | `|` | 竖线 |
+| `--` | `->` | Flow 链连接符号 |
+注意：
+- `--` 仅在 flow 区域等价 `->`，prompt 中不受影响。
+- 其它中文符号在.fems剧本语法中全局等价为对应的英文符号。
+
+## 1. 剧本整体结构
+
+按以下顺序组织：
+
+meta:   # 剧本元信息区
+vars:   # 全局状态变量区
+code:   # 外部 Python 代码区
+actors: # 角色定义区
+memory: # 记忆检索方法定义 (可选)
+context:# 上下文提取方法定义 (可选)
+action: # 动作定义 (可多个)
+module: # 模块定义 (可多个)
+mainflow:   # 主流程编排
+
+## 2. 元信息 (meta)
+
+定义剧本基础属性与运行环境。
+
+meta:
+    name = "我的狼人杀"
+    version = 1.0
+    owner = [1, 2]
+    database = file:"werewolf.db"
+    session = new
+    system_safety = |
+    不许删库。
+    不许违法犯罪，不许生成危险内容，不许歧视女性。
+    output_style = "回复请简洁专业"
+
+字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `name` | 文本 | 否 | 剧本名称，新建 session 时写入 `sessions.title` |
+| `version` | 文本 | 否 | 版本号 |
+| `owner` | 整数数组 | 否 | 剧本所有者在数据库中的 user_id 列表，自动注入所有记忆记录的 user_scope |
+| `database` | 文件路径 | 否 | SQLite 数据库路径。未指定默认 `./dialog.db` |
+| `session` | 整数 / `new` | 否 | 运行的 session_id。未指定或为 `new` 时自动新建 (max+1)。指定不存在的数字报错 |
+| `system_safety` | 文本 / 文件路径 | 否 | 安全须知，自动注入上下文 |
+| `output_style` | 文本 / 文件路径 | 否 | 输出质量要求，自动注入上下文 |
+
+`owner` 信息会从数据库的 user 表读取，并由编译器生成 `blocks['user_info']`，格式如：
+
+[用户 @Alice 的信息]
+喜欢简洁回答，后端工程师。
+
+[用户 @Claire 的信息]
+喜欢详细解释，前端工程师。
+
+
+
+## 3. 全局变量池 (vars)
+
+全局状态，所有节点均可读写。变量必须先在此声明，否则赋值报错。
+
+vars:
+    turn_count = 1
+    alive_players = [@seer, @wolf]
+    agent_locations = {@ellis: "卧室", @bob: "公园"}
+    game_over = false
+    @speaker = ""
+    hp = {@wolfClaire: 100, @预言家: 100, @player: 100}
+
+- **声明变量的必要**：如果 action 中使用了未在 vars 中声明的变量，解析器会报错。
+- **字典缺省值**：prompt 中使用 `dict[key]` 但 key 不存在时，解析为空字符串 `""`，不报错。
+- **Actor 类型变量**：你可以定义一个@actor类型变量并把它赋值为某个人。比如，@speaker = @预言家。空值用空字符串""。
+  注意，actor类型变量必须全程带着`@`开头，不然无法被识别为@actor类型。
+
+## 4. 外部代码 (code)
+
+引入 Python 文件，供 `@func` 和 `resolve` 调用。
+FEM 可以通过 code: 区域声明外部 Python 文件，然后在 action 中调用：
+
+**路径必须使用 `file:"..."` 格式**。以下名称为保留字，不可作为别名：
+`meta`, `vars`, `code`, `actors`, `action`, `module`, `flow`, `mainflow`, `memory`, `context`
+
+code:
+    game_logic = file:"utils/game.py"
+    dev_ops = file:"utils/deploy.py"
+
+## 5. 角色定义 (actors) 与 @actor 类型变量
+
+采用 `类型 变量名 = 属性` 的强类型声明风格。Actor 名字永久以 `@` 开头。
+
+actors:
+    ai hostgod = soul:0, source:deepseek
+    ai wolfbob = soul:1, source:glm5.1, tools:[deep_think]
+    ai 预言家 = soul:2, source:glm5
+    human player = soul:9, source:0
+
+注意：
+- 必须写`actors:`, 下一行缩进。
+**Actor 实体名字永远带 `@`，代码中任何地方不得去掉。**
+  定义时：`ai @ellis = soul:1`
+  引用时：`@ai(@ellis)`、`scope: [@ellis]`
+  变量传递时：`@speaker = @ellis`
+  AI输出赋值时：如果要赋值@actor，变量名也必须带着`@`开头，不然无法被识别为@actor类型。
+  你可以理解为`@`是变量名的一部分，就像你不会把Alice写成lice，你也不能把@Alice写成Alice。
+- 定义@actor实体时，开头必须是ai或human，这两者为保留字段。
+- 人名支持中文。
+- `soul:ID`：唯一标识，用于 scope 定位和数据库查询，对应数据库中souls表同一 soul id的角色。数据库中同时存着该角色的系统提示词，编译器会自动去数据库中提取，并生成`blocks['soul']`.
+- `source`：AI 写模型名（可缺省随机分配）；人类写数字，对应数据库中user表的具体人。
+- 特殊的，human source为0时，代表无管理员视角的人类用户，只拥有soul的视角。
+  适用于有些场合，比如作为狼人杀玩家，他不能开human source为任何正整数的管理员视角。
+- `tools`：设定该AI角色挂载的工具列表，如 `web_search`、`deep_think`。
+
+未实现TODO：**蓝图角色**（动态生成模板）：
+blueprint coder:
+    source: ai-glm5
+    tools: [code_interpreter]
+蓝图不指定 `soul`，运行时由 `system.spawn` 动态分配。
+
+
+### Actor 类型系统与实体访问
+
+在 FEM 中，Actor 不仅是角色配置，更是一种**变量类型**。它代表“执行人”实体，拥有身份和状态。
+
+**赋值**
+它可以像变量一样在 `vars` 中被赋值和传递：
+
+vars:
+    current_speaker = @seer           # Actor 类型的变量
+    alive_players = [@seer, @wolf]    # Actor 数组
+    locations = {@ellis: "卧室"}       # 以 Actor 为 key 的字典
+
+- 在 Flow 和 Action 中，你可以用 `@变量名` 取到这个 Actor 实体，也可以直接用 `@角色名` 引用它。
+- 如：当你已经把@ellis赋值给了@speaker，那么：
+action give_a_speech @ai(@speaker):
+等价于：
+action give_a_speech @ai(@ellis):
+
+@speaker.type 
+等价于 
+@ellis.type
+
+- 支持 f-string：
+prompt："现在发言者是{@speaker}。"
+实际上ai收到的prompt会被解析为：现在的发言者是@ellis。
+
+
+**实体属性双向访问**（字典视角 vs 实体视角）：
+
+FEM 引入了类似数据库的“行/列”双向视角。假设我们在 `vars` 中定义了一个字典：
+vars:
+    hp = {@wolfClaire: 100, @预言家: 100, @player: 100}
+    salary = {}
+当我们想读取或修改 `@wolfClaire` 的血量时，有两种完全等价的写法：
+1. **字典视角（按列查）**：`hp.@wolfClaire` —— 在 hp 这本花名册里，翻到 wolfClaire 那一页。
+2. **实体视角（按行查）**：`@wolfClaire.hp` —— wolfClaire 这个人，他的 hp 是多少。
+
+**这两种写法在 FEM 中完全等价，可以随语境自由使用**
+- 在 prompt 中：`"你的当前血量是 {hp.@wolfClaire}"` 与 `"你的当前血量是 {@wolfClaire.hp}"` 效果完全相同。
+- 在 AI 输出信号中：`<<hp.@wolfClaire: += 30>>` 与 `<<@wolfClaire.hp: -= 30>>` 均可。
+- 在 action assign 赋值时：`salary.@ellis = 5000` 与 `@ellis.salary = 5000` 均可。
+
+#### 静态属性与动态属性
+既然 `@实体.属性` 可以访问字典，那它和 Actor 定义时的属性（如 `@wolfClaire.soul`）会冲突吗？
+规则：静态属性优先，保留字不可覆盖。解析 `@实体.属性` 时，先查以下 5 个静态保留属性，未命中则去 `vars` 中查找同名字典。
+| 保留属性 | 含义 | 示例值 |
+|---|---|---|
+| `type` | 角色类型 | `"ai"` 或 `"human"` |
+| `soul` | 角色 ID | `1` |
+| `source` | 模型/来源 | `"glm5.1"` 或 `0` |
+| `tools` | 挂载工具 | `["deep_think"]` |
+| `name` | 角色名 | `"wolfbob"` |
+例如：
+- `@wolfClaire.soul` -> soul 命中保留字，返回静态属性 `1`
+- `@wolfClaire.hp` -> hp 不是保留字 → 自动查找 vars 中的 `hp` 字典，取 `hp.@wolfClaire` 的值
+- `@ellis.salary` -> salary 不是保留字 → 自动查找 vars 中的 `salary` 字典，取 `salary.@ellis` 的值
+
+这种设计意味着：
+**你不需要为了给角色挂载状态而修改 actors 定义，只需在 vars 中建立相应的字典，即可通过 `@实体.属性` 的直觉方式访问。** Actor 的身份是静态的，但状态是动态且可无限扩展的。
+
+
+## 5. memory 和 context 定义（与 action/module 平级）
+### 5.1 定义方法
+memory 方法名(模块别名.函数名):
+    in: 参数1, 参数2, @actor
+    out: 返回值变量(类型)
+
+context 方法名(模块别名.函数名):
+    in: session, @actor
+    out: 返回值变量(类型)
+
+### 5.2 参数传入传出约定
+`in:` 中声明的参数在调用用户 Python 函数时按名传入：
+| 预留字段 | 值 |
+|-|-|
+| `prompt` | 当前 action 的 prompt（已变量替换） |
+| `@actor` | 当前说话者的 actor_info 字典，如 `{"soul": 1}` |
+| `session` / `session_id` | 当前 session ID |
+| `turn` / `turn_id` | 当前 turn ID |
+| 其他 | 从全局变量 `vars` 中取值 |
+* `@actor` 在传给 Python 函数时，参数名自动映射为 `actor_info`。
+* 用户自定义函数的 `def` 签名应与 `in:` 声明和上述映射保持一致。
+out:
+用户提供的context或memory的函数的返回值，会被无脑赋给 `out:` 声明的变量，并放入对应的 block("memory") 或 block("context")中，方便外部代码调用。
+所以用户提供的函数，返回值必须就是context或memory的文本或json格式，能直接发给AI的那种。
+如果返回值设定的不对，那么AI看到的上下文大概就会奇奇怪怪吧——反正这里无脑赋值，不做校验。
+变量必须先在 `vars:` 中声明。
+
+### 5.3 Action 中引用方法
+action speak @ai(@ellis):
+    prompt: "你好"
+    memory: 方法名
+    context: 方法名
+* 如果 action 不指定 `memory:`，则使用第一个定义的 memory 方法。
+* 如果没有定义任何 memory 方法，`memory` 块为空。
+* 如果 action 不指定 `context:`，则使用第一个定义的 context 方法。
+* 如果没有定义任何 context 方法，使用内置默认实现（提取当前 session 上下文）。
+
+
+
+## 6. 动作定义 (actions)
+
+Action 是一个行为单元，描述"做什么"。它本身没有位置信息。
+使用 `action` 关键字定义，格式：`action 动作名 @执行者类型(执行者参数):`
+
+### 6.1 AI 动作
+action wolf_kill @ai(@wolf):
+    prompt: |
+        现在是第{day_count}天夜晚，存活玩家：{alive_players}。
+        你是狼人，请选择击杀目标，你可以分析一段。：
+        分析结束后请务必输出 SET VARIABLE: << KILL = @玩家名 >> 你想击杀哪个玩家你就把 @玩家名 换成 @他的名字。
+    scope: [@hostgod, @wolf]
+    out: wolf_target(string, "击杀目标")
+    resolve: game_logic.resolve_target(arg1, arg2)
+    max_retries: 3
+    fallback: host_emergency
+    context: 方法名
+    memory: 记忆方法名
+    interrupt: human_interrupt_branch
+    
+字段说明：
+
+- **`(actor_expr)`**：实际执行角色，可以是静态角色名或动态变量（如 `@speaker`）。
+当 action 的角色使用动态变量，在循环中复用时，循环变量必须和action定义时括号里的身份一致。
+比如定义时action @ai(@wolf)，那么：
+for @wolf in [...] 可以，
+for @speaker in [...] 不行，会报错。因为@speaker 和 @wolf 对不上。
+这样设计是因为，action毕竟不是函数，它是基于prompt的AI发言回合，每个action的prompt固定。所以如果来的不是 @wolf 而是 @seer 或者别的什么人，用错人了，可能会造成混乱。
+如果你实在很想要更大的灵活性，你可以定义比如action .. @ai(@role),然后全局使用for @role in [...]……但这样会降低角色身份的明确性，我个人觉得这不利于你长期维护这个剧本小世界呢。
+
+    
+- **prompt**：
+  支持 `{var}` 进行变量替换。
+  此处存在prompt工程艺术，你可以在提示词中引导AI更好的输出，以适应流程。
+  （比如如果你写了个狼人杀，但是懒得加action判断夜间发言角色是否还活着，你可以直接在prompt里写：你是{@speaker}, 目前存活玩家是{alive}，如果你已经死了，不许说话，不许输出变量赋值。）
+  不过AI有幻觉，如果你要求流程精确，最好还是用赋值变量和action，自己写flow以控制流程。 
+  
+- **`memory`**：引用已定义的 memory 方法，如 `rag10`。不指定则使用第一个定义的 memory 方法。
+- **`context`**：引用已定义的 context 方法，不指定则使用第一个定义的 context 方法。若未定义任何 context 方法，则使用FEM系统自带的context方法。
+
+- **上下文与scope**：[@角色名1, @soulname2]
+  - 简单理解：
+  定义此动作发生的"房间"。只有出现在此列表中的 soul:ID 才能看到这轮对话的上下文。
+  支持动态变量。例如 scope: [{playersInPark}]，表示当前在公园的所有角色都能看到本条对话。
+  写剧本设置scope时，就写房间内的在场角色就好，非常直觉的写法。
+  在action执行时，变量 playersInPark 会被实时解析为当前的常量 [@agent1, @agent2]，不保留变量引用。
+  - 开发者视角：
+  所有聊天记录都是由action产生的，系统存储本条聊天记录时，会同时存储加入本action的scope区的实体：
+     角色所对应的soul id会存入数据库的soul_scope字段。
+     人类用户身份会存入本条数据库的user_scope字段（除了source0不存）。
+  这方便我们之后选择性的展示上下文和记忆，方便的做上下文隔离。
+  “房间”比喻只是为了方便理解，其实是等价的。更准确的比喻是：神将这个世界的所有历史存入宇宙的硬盘，但只有亲身经历这段历史的人有资格检索到它。
+  FEM模块自带的context方法默认支持通过scope检索上下文，如果你不写context方法，直接运行FEM项目，默认就是角色只能看见自己在scope范围内的聊天记录。
+  此外，除了上下文，如果你有长期记忆检索需求，你也可以在你的记忆检索算法中，使用数据库中的scope字段来分角色，让每个角色只拥有属于自己的记忆，而不会想起来别的角色发生的事儿。
+  
+- **`in`**（显式传入变量，可选）：
+  决定 action 的 prompt 中可以访问哪些变量。有两种模式：
+  1. **自动模式（默认）**：action 不写 `in:`，prompt 中所有 `{var}` 自动替换为**全局**变量的值。
+  2. **显式模式**：action 写了 `in:`，只有 `in:` 中列出的变量会被传入 prompt 并替换。
+     格式：`in: 显示名 = 全局变量名`，例如：
+       in: my_task = task_list[@coder_1]
+     prompt 中用 `{my_task}` 引用，引擎将其替换为 `task_list[@coder_1]` 的值。
+     未在 `in:` 中列出的变量不会替换，`{var}` 保持原文。
+     这是为了**控制信息暴露范围**，防止 AI 看到不该看的数据。
+- **`out`**（AI 输出变量声明）：
+  声明此 action 需要 AI 输出的变量。格式 `变量名(类型, "标签")`。
+  AI 必须在回复中使用 `SET VARIABLE: <<变量名 = 值>>` 格式输出该变量的值。
+  变量必须已在 `vars:` 中预先声明，否则赋值时引擎将报错。
+  `类型`（如 `string`、`enum([a,b])`、`dropdown`）和 `"标签"` 为预留字段，
+   当前版本仅作标记，不进行自动校验或前端渲染。
+  可写入字典键，如 `vote_results.@voter(string, "")`，将值存入字典的指定键。
+
+- **AI主动的变量赋值**
+  如果你需要AI进行赋值，需要你在prompt中让 AI 输出 `SET VARIABLE: <<VARIABLE_NAME = 值>>` 变量赋值信号。
+  
+- 赋值语句
+  AI 通过 `SET VARIABLE: <<变量名 = 值>>` 输出信号，解析器提取并赋值。支持以下操作：
+| 格式 | 含义 |
+|---|---|
+| `SET VARIABLE: <<VAR = 值>>` | 直接赋值 |
+| `SET VARIABLE: <<VAR += N>>` | 加 N |
+| `SET VARIABLE: <<VAR -= N>>` | 减 N |
+| `SET VARIABLE: <<VAR = add(元素)>>` | 列表追加 |
+| `SET VARIABLE: <<VAR = remove(元素)>>` | 列表移除 |
+- 输出示例：
+  我觉得3号玩家很可疑，我投票给3号。SET VARIABLE: <<VOTE_TARGET = @player3>>
+  我觉得这个需要涨价一点。SET VARIABLE: <<Price += 200>>
+  我的角色是soul1，我也去了公园。SET VARIABLE: <<playersInPark = add(@soul1)>>
+  我离开了公园。SET VARIABLE: <<playersInPark = remove(@soul1)>>
+  我使用了治疗技能治疗随机一人～SET VARIABLE: <<@randomplayer.blood += 10 >>
+  
+- 中文支持
+| 中文支持 | 英文支持 | 说明 |
+|-|-|-|
+| `SET VARIABLE:` | `设定变量：`    | AI输出的赋值|
+| `《` `〈` `《《` | `<<` | AI 输出赋值标记开始 |
+| `》` `〉` `》》` | `>>` | AI 输出赋值标记结束 |
+正确示例：
+    SET VARIABLE: <<KILL = @Olivia>>
+    设定变量：<< KILL = @Olivia>>
+    设定变量：《KILL = @Olivia》
+    SET VARIABLE: <<SCORE += 1>>
+    SET VARIABLE: <<TASKS = add(@Alice)>>
+    SET VARIABLE: <<DEAD = remove(@Portia)>>
+注意：
+- 前缀 `SET VARIABLE:` 或 `设定变量：`均可。
+- 括号内支持 `=` 、`+=`、`-=`、` = add()`、`= remove()` 等操作。
+- 表达式末尾需有 `>>` 或 `》` 等闭合符号。
+- `《》` 仅在 AI 输出赋值识别中等价 `<<>>`。
+- 中文前缀后的冒号 `：` 与英文 `:` 等价，无需区分。
+
+- **赋值解析流程**
+  1. 引擎扫描 AI 完整回复，找到所有 `SET VARIABLE: <<...>>` 格式的语句。
+  2. 逐个尝试解析 `<<...>>` 内的赋值表达式。
+  3. 解析成功的，直接操作变量值（和 `@assign` 一样）。
+  4. 解析失败的，按原文顺序存入一个名为 `SET_VARIABLE` 的列表。
+  5. 如果 action 没有声明 `resolve` 函数，解析失败的赋值直接丢弃，引擎打印警告。
+  6. 如果 action 声明了 `resolve` 函数，且用户在参数中写入了 `SET_VARIABLE`，
+     引擎将 `SET_VARIABLE` 列表原样传给该函数，由用户自行解析和处理。
+  7. `resolve` 函数返回三元组列表，引擎据此决定是否接受赋值。
+  8. 如果 `resolve` 也解析失败（返回 `is_success = False`），赋值失败，引擎返回错误信息。
+  
+  `SET_VARIABLE` 列表的传递规则：
+  - 只有当用户在 `resolve` 的括号参数中显式写了 `SET_VARIABLE` 时，引擎才传入该列表。
+  - 如果用户没写，即使有解析失败的项，也不传入 `resolve` 函数。
+  - 这样用户可以自行决定是否需要处理 AI 的非标准输出格式。
+
+**`resolve`**（校验/解析函数）：
+- 可选，FEM 编译器只能对变量赋值做最基础的格式检验。如果你有更复杂的赋值要求，
+  或者你想兼容 AI 的非标准输出格式，可以在这里设定一个函数来处理。
+- 调用格式：`resolve: 模块别名.函数名` 或 `resolve: 模块别名.函数名(参数1, 参数2, ...)`
+- 函数由用户自行在 code 区提供。用户请照着这个标准写。
+- 显式传参模式（括号内有参数）：
+    `resolve: game_logic.resolve_target(KILL, alive_players, SET_VARIABLE)`
+    括号内的参数名必须在以下三者之一中找到，否则引擎报错：
+    - 全局 `vars:` 中声明的变量
+    - 当前 action 的 `in:` 中声明的变量
+    - 特殊值 `SET_VARIABLE`（解析失败的赋值原文列表）
+    引擎按用户声明的顺序，将对应的值作为关键字参数传入函数。
+    如果用户写了 `SET_VARIABLE`，引擎传入解析失败的列表；如果没写，不传。
+    
+- 自动传参模式（括号内无参数，兼容旧写法）：
+    `resolve: game_logic.resolve_target`
+    引擎自动传入以下关键字参数：
+    - `prompt`：当前 action 的 prompt 文本
+    - `llm_output`：AI 的完整回复原文
+    - `SET_VARIABLE`：解析失败的赋值原文列表（如果有）
+    - 以及 `in:` 中声明的所有变量
+    
+- 函数返回请设定为**三元组列表**，每个三元组对应一个 out 变量：
+    `[(is_success, show_to_ai, feedback), ...]`
+    - `is_success`：本次赋值是否接受（`True`/`False`）
+    - `show_to_ai`：是否将反馈信息展示给 AI（**当前版本预留，未生效**）
+    - `feedback`：反馈文本（**当前版本预留，未生效**）
+    
+- 用户需要提供的函数模块示例：
+    def resolve_target(KILL=None, alive_players=None, SET_VARIABLE=None, **kwargs):
+        if KILL and KILL in alive_players: # 先尝试用内置解析的结果
+            return [(True, False, "")]
+        if SET_VARIABLE: # 内置解析失败，自己从 SET_VARIABLE 里找
+            import re
+            for item in SET_VARIABLE:
+                m = re.match(r'KILL\s*=\s*@(\w+)', item)
+                if m and f"@{m.group(1)}" in alive_players:
+                    return [(True, False, "")]
+        return [(False, True, "目标不在存活玩家中，请重新选择。")]
+    
+暂未实现·计划TODO：
+- `show_to_ai`：本轮输出是否返回给 AI 看。
+  True = 将反馈结果是否成功告诉AI，会多一轮次调用LLM，这一轮对话记录也将存入对话历史。
+  False = AI输出之后，你不打算把赋值结果反馈再次发给他，省轮次。
+- `feedback`：反馈信息，如果你在prompt中设置了反馈信息的f-string，那么你如果再次发给AI，他就能看到了。
+  适用于某些时候赋值失败，你想提醒AI如何正确的赋值。
+- 当前版本中，`resolve` 的返回值仅用于决定是否接受赋值，**重试机制尚未实现**。
+  `max_retries` 和 `fallback` 字段已预留，但引擎不会自动重试。
+  计划在未来版本中支持校验失败后携带 feedback 重新调用 AI。
+
+- **`max_retries`**：可选。校验失败时最大重试次数，用尽后走 `fallback`。
+  `max_retries = 0` 表示不重试直接 fallback。
+- **`fallback`**：可选。重试用尽后跳转的 action 或 module，可不指定（报错终止）。
+
+计划TODO：
+- **`interrupt`**（打断条件，可选）：
+声明在什么条件下可以打断本轮 AI 输出。
+打断发生时的行为：停止 AI 输出 → 未执行的工具调用不再执行 → 标记 [Interrupted] → 注入 AI 上下文。
+支持多种触发源：
+1. **人类打断**：默认人类发言都会打断。
+2. **变量条件**：当全局变量满足条件时打断`interrupt: night == true`
+3. **外部 Python 模块**：复杂条件，执行 Python 函数，返回 True 时打断：`interrupt: game_logic.check_interrupt`
+4. 特殊参数：如需指定特定人类发言不打断：`interrupt: HUMAN_EXCEPT(@ellis, @bob, @1) , 如果写interrupt: HUMAN_EXCEPT，就代表所有人类都不能发言打断。`
+
+
+### 6.2 人类动作
+
+action human_vote @human(@player):
+    prompt: "请投票："
+    scope: [@hostgod, {alive_players}]
+    out: vote_target(dropdown, choices={alive_players}, label="投票")
+    resolve: game_logic.resolve_human_vote
+
+- 语法与 @ai 基本一致。
+- `out` 中的 `dropdown` 会映射为前端 UI 组件。
+- 人类动作**可选** resolve（如游戏规则要求人类也必须合规操作）。
+- 人类动作**有**上下文，context写法和ai动作一样。
+- 人类动作无需 memory，人类自带强大的memory。
+
+也允许让人类玩家扮演特定 AI 角色，继承该角色的视野（scope）：
+action seer_act_human @human(@player) as (@预言家):
+    prompt: "你现在是预言家，你要查验谁？"
+    scope: [@预言家, @hostgod]   # 玩家进入预言家的私密频道
+
+
+### 6.3 轻量级赋值 (@assign)
+支持`=`（直接赋值）、`+=`（加）、`-=`（减）、`= add()`（列表追加）、`= remove()`（列表移除）。
+action next_turn @assign:
+    out: day_count += 1
+
+action reset_scene @assign:
+    out: current_scene = "酒馆"
+
+action add_player @assign:
+    out: playerInPark = add(@Alice)
+         playerInMarket = remove(@Alice)
+
+不调用 LLM。
+变量必须已在 `vars:` 中声明，否则引擎报错。
+assign只支持简单的赋值操作，需要函数调用请用 `@func`。
+
+
+### 6.4 Python 函数调用（@func）
+
+`@func` 用于调用用户在 `code:` 区域声明的 Python 文件中的函数。
+#### 1. 基本用法
+code 区先声明模块，再用 `模块.函数名` 调用：
+code:
+    my_utils = file:"utils/game.py"
+
+action tick @func(my_utils.wait_and_tick):
+    in: hour
+    out: hour, mood
+
+- `in` 列出要传给函数的变量，变量名与函数参数名相同可直接写，不同则用 `参数名 = 变量表达式`。
+- `out` 声明接收返回值的变量，按函数返回结构自动映射。
+**核心原则**：`in` 给什么，函数就收什么；函数返回什么，`out` 就接什么，编译器将无脑赋值，不做转换。
+
+
+#### 2. 输入传参（in）
+
+支持两种模式：显式声明和自动推断。
+**显式声明**：
+在 action 中写 `in:`，引擎严格按照声明传参。
+action check @func(my_utils.check_soul):
+    in:
+        target_name = seer_check_target
+        souls_dict = souls
+    out: seer_check_result
+左边是 Python 函数的参数名，右边是 FEM 全局变量表达式。编译器将先求值右边的表达式，再传给左边对应的参数。
+
+**自动推断**：
+action 没有写 `in:` 时，运行时根据 Python 函数的参数签名，去全局 `vars` 中查找**同名**变量传入。
+不支持模糊匹配。若找不到同名变量且参数无默认值，引擎报错退出；若有默认值，则跳过该参数。
+
+    
+#### 3. 输出接收（out）
+无论函数返回什么，编译器都按以下规则把结果塞进 `out` 声明的变量中。
+**函数返回字典**
+如果 Python 函数返回一个 `dict`，编译器会按 key 名匹配 `out` 中声明的变量名，将对应的值写入。
+- Python 函数
+def resolve_night(kill_target, save, ...):
+    return {"dead_tonight": dead, "alive": new_alive}
+- FEM 剧本
+action resolve @func(my_utils.resolve_night):
+    in: kill_target, save
+    out: dead_tonight, alive
+
+- 返回字典的 key 必须与 `out` 中声明的变量名**完全一致**，数量必须相等。
+- 如果返回字典中有未在 `out` 中声明的 key，引擎报错退出。
+- 如果 `out` 中声明的变量在返回字典中不存在，引擎报错退出。
+
+**函数返回单值（非字典）**
+如果函数返回字符串、数字等单一值，且 `out` **恰好声明了一个变量**，则直接赋值。
+- Python 函数
+def collect_vote(voter_name, target):
+    return target
+- FEM 剧本
+action collect_vote @func(werewolf_utils.collect_vote):
+    in:
+        voter_name = @voter
+        target = vote
+    out: vote_results.@voter(string, "")
+- 函数返回 `"p3"`，编译器自动执行 `vote_results["@p1"] = "p3"`。
+- 函数只需返回最终值，不要自己去组装字典。
+- 如果 `out` 声明了多个变量但函数只返回一个单值，引擎报错退出。
+
+**写入字典的特定键**
+当 `out` 写成 `dict.key` 形式时，编译器会把返回值直接写入该字典的指定键。
+格式：`out: 字典名.键名(类型, "标签")`
+- 如果字典本身在 `vars:` 中已声明，函数返回的值直接写入对应键。
+- 如果字典不存在（未在 `vars:` 中声明），引擎报错退出。
+- 函数仍然只返回最终值，编译器负责字典写入。
+
+#### 暂未实现：内置特殊函数 `system.spawn`
+用于动态创建临时角色：
+action spawn_team @func(system.spawn):
+    in: spawn_requests
+    out: team_members
+- 上游 agent 输出 `spawn_requests`，如 `[{blueprint: coder_blueprint, count: 2}]`。
+- `system.spawn` 根据蓝图生成临时角色并返回列表 `[@coder_4, @coder_5]`。
+- 返回的列表可直接用于 `par` 遍历。
+- 临时角色在 Flow 结束后由引擎自动回收。
+- 动态建队完整示例
+action plan @ai(hostgod):
+out: spawn_requests(array, "建队申请"), task_list(object, "任务")
+
+action spawn_team @func(system.spawn):
+in: spawn_requests
+out: team_members
+
+flow:
+[START] -> plan -> spawn_team
+spawn_team -> par coder in team_members -> &CoderSandbox(coder, task_list[coder])
+join(all) -> [END]
+
+工作流程：manager 规划 → system.spawn 按蓝图生成角色 → 并行分配任务 → 汇总结束。
+
+####@actor 变量与 Python 函数的衔接
+当 `in:` 中声明的变量是 `@actor` 类型时，引擎会**自动将其解析为结构化字典**再传给 Python 函数，因为 Python 不认识 FEM 的 `@actor` 语法。
+
+解析规则：
+如果剧本中有：
+vars:
+    hp = {@ellis: 100, @bob: 80}
+    location = {@ellis: "酒馆", @bob: "公园"}
+    
+1. 当 @ellis 传给 Python 函数时，收到的字典是：
+{
+    "type": "ai",
+    "name": "@ellis",
+    "soul": 3,
+    "hp": 100,
+    "location": "酒馆"
+}
+
+2. 当把 hp.@ellis 传给Python函数时，收到的是hp.@ellis的实时值。
+在这个例子里就是100.
+
+**示例**：
+- FEM 剧本
+action check @func(my_utils.check_soul):
+    in: target = @ellis
+    out: result
+- Python 函数可以直接访问所有属性：
+def check_soul(actor):
+    if actor.get("hp", 100) < 50:
+        return {"result": f"{actor['name']} 血量不足，无法行动"}
+    if actor["soul"] == 3:
+        return {"result": f"{actor['name']} 是狼人，位于{actor.get('location', '未知')}"}
+    return {"result": "好人"}
+**规则**：`@actor` 类型变量传入 Python 时，始终打包为该角色的**当前完整状态字典**，包含静态属性（type/name/soul/user）和所有在 `vars` 中以该角色为键的动态属性。
+
+#### 常见错误
+| 错误 | 正确 | 说明 |
+|------|------|------|
+| 函数返回完整字典，但 `out` 已指定 `dict.key` | 函数只返回最终值，编译器负责字典写入 | `out: dict.key` 时，函数返回单值即可 |
+| 返回字典的 key 与 `out` 声明的变量不一致 | 确保返回字典的 key 与 `out` 变量一一对应 | 多余或缺失都会报错 |
+| `out` 声明多个变量，函数却返回单值 | `out` 只声明一个变量，或函数返回字典/tuple | 数量必须匹配 |
+| 函数返回 tuple，但数量与 `out` 不匹配 | 确保 tuple 长度与 `out` 变量数相等 | 每个位置对应一个变量 |
+
+
+## 7. 模块定义 (modules)
+
+模块是包含子流程的黑盒，方便直接调用，不用管里面怎么写的。
+模块里面装着一个完整的子流程，有内部vars, 内部actions, 入口、出口、内部flow。有些像python里的class。
+
+### 基本语法
+module ModuleName(参数1, 参数2):
+    meta:
+        max_steps: 100
+    vars:
+        局部变量 = 初值
+    action ...
+    flow:
+        [IN] -> ... -> [OUT]
+        
+module CoderSandbox(task_var):
+    vars:
+        finish = false
+    action write_code @ai(@coder_actor):
+        prompt: |
+            任务: {task_var}
+            你的代码保存在文件夹中，代码测试结果也在文件夹中，请自行查看。
+            你能使用shell工具，请调用shell工具编写代码。
+        scope: [@coder_actor]
+
+    action submit_code @ai(@coder_actor):
+        prompt: |
+            你需要测试代码是否能跑通。
+            请使用shell工具进行测试，测试结果请保存在文件夹中，方便后续查看。
+            如果你认为代码没问题了，请输出赋值变量：
+            SET VARIABLE : <<finish = true>>
+        out: finish(bool, "结束了没")
+        
+    flow:
+        [IN] -> write_code -> submit_code ->
+        fork:
+            -> (if finish == true)[OUT]
+            -> (if finish == false)[IN]
+        
+module DevLoop(task_var):
+    vars:
+        submit = "discuss"
+    action reviewer @ai(@CEO)
+        prompt: |
+             审查任务{task_var}的代码。代码在文件夹里你自己调用工具去看。
+             如果你认为代码有问题，你现在可以和写代码的AI讨论，没讨论完时不要输出任何变量赋值。
+             如果你觉得讨论清楚了，决定让写代码的ai去修改，请输出SET VARIABLE : <<submit = "revise">>
+             如果你认为讨论可以结束了，代码很好，请输出SET VARIABLE : <<submit = "goodjob">>
+        scope: [@CEO，@coder_actor]
+        out: submit
+        
+    action reviewer2 @ai(@coder_actor)
+        prompt: "这是CEO在审查你的代码，你们可以讨论。"
+        scope: [@CEO, @coder_actor]
+
+    flow:
+        [IN] -> [A]:&CoderSandbox -> 
+             -> [B]:reviewer -> [C]:reviewr2 ->
+        fork:
+             -> (if submit == "goodjob") -> [OUT]
+             -> (if submit == "revise") -> [IN]     # 回到[IN]，重写。
+             -> (if submit == "discuss") -> [B]     # CEO未改变赋值，回到[B]，继续讨论的小循环。
+
+- **参数与变量**
+  括号内参数可直接在模块内用 {参数名} 引用。如果无需传入参数，可直接写module CoderSandbox:
+  内部 vars 为局部变量，离开模块后清空。
+  需要重命名时使用 in。
+
+- **内部锚点**：
+  `[IN]`：模块入口。数据从这里流入。
+  `[OUT]`：模块正常出口。数据从这里流出，后续可接其他节点。
+  `[BREAK]`：模块中断出口。跳出模块且本分支停止，后面不接任何东西。
+  
+### 调用方式
+- 在模块内部flow或项目mainflow中，引用模块时加 `&` 前缀以区分action。&ModuleName，或者&ModuleName(args)都行。
+- **嵌套**：模块内可调用其他模块，使用`&moduleName`引用其他module。
+- 模块允许递归调用自己，但：
+  **警告**：模块退出后局部变量会清空，不会传递给母模块。所以必须使用全局变量来控制跳出。
+  **警告**：不可以设置max_steps参数防止死循环。我们设定的是模块内部steps和全局steps分别计数，所以模块内部步数在全局这里永远为1. 子模块的步数在母模块这里也永远为1，会陷入死循环！
+  所以最好还是别递归了吧。
+
+
+
+## 8. 节点与流程编排 (flow)
+
+**核心概念区分**：
+- **Action**：是行为（做什么），无位置信息。
+- **Module**：是黑箱（装着子流程），有入口出口。
+- **Node**：节点是位置标记和容器，一个 Node 可以装一个 action 或 一个module。
+- **Flow**：将 Node 串起来。
+
+约定：
+- Action 引用：无前缀（如 `action1`），书写流畅。
+- Module 引用：`&` 前缀（如 `&small_module`），一眼看出这是个黑箱。后面可以加(arg)也可不加。
+- 节点与位置：方括号代表位置。`[NodeName]`、`[IN]`、`[OUT]`、`[BREAK]`，`[START]`、`[END]`方括号不可省略。
+
+**8.1 Node（节点）与动作**
+Node 是 Flow 中的位置标记。
+当只是单独的链子时，偷懒只写action名也没问题。
+但当流程有循环时，必须使用节点来标明位置，以区分"再次执行"和"循环回去"：
+- 这不是循环:
+action1 -> action2 -> action3 -> action1 # 只是又执行了一遍action1的顺序执行。
+- 这才是循环: 
+[A]:action1 -> [B]:action2 -> [C]:action3 -> [A] # 回到A的**位置**，之后会继续跑B和C的位置。
+
+**节点内容定义**：
+以下定义方法都支持：
+[A]: myaction1
+[B]: &modulename
+[C]: &mymodule(arg)
+[A] -> [D]:actionName2 -> [E]:&mymodule(arg) -> [B] -> [A]
+- 节点允许不绑定任何动作或模块，空节点可以作为占位符。编译器遇到空节点，会继续往下一个节点运行。
+
+### 8.2 顺序链
+
+[START] -> action0 -> [B]:action1 -> &module1 -> [END]
+- `[START]` 和 `[END]` 是保留关键字，必须大写。
+
+对于单行链太长时，我们可以拆成多行写。只要首尾节点能接上，那就能续上。
+但需注意：只有**节点**能接上，因为节点代表位置。Action和module名是无法发生接续的。
+续行例子：
+[IN] -> wolf_discuss -> seer_check -> seer_result -> [A]:tell_seer
+//中间甚至可以写点别的链子，顺序不敏感，类似mermaid语法。
+[A] -> witch_save_ask -> witch_poison_ask -> resolve_night -> [OUT]
+
+
+### 8.3 高级语法
+
+#### 并发分支（fork）：
+以fork开头声明此处有分支。fork只管分支，不管合并。
+分支是并发的，每当遇到分支，编译器会将分支全部运行在新的子线程中。调用LLM需要时间，分支很适合同时调用多个LLM。
+前链最后指向该节点，下一行将该节点作为母节点，fork加冒号产生分支。
+分支缩进的“->”指的是从母节点分出的不同路径。
+[A] -> [B] -> [C] ->
+fork:
+    -> [visit]
+    -> [solo]
+
+另一种分支写法是同缩进多行：
+[A] -> [B] -> [C]
+[C] -> [visit]
+[C] -> [solo]
+
+#### 条件判断并行分支（if）：
+当你需要条件判断时，可以简单的在边上加if。
+无if 和 if 的区别：无if则无条件全通并行，有if时判断为真的才通（也是并行）。
+编译器会将if判断语句直接交给python，让python去解析。支持任意合法的 Python 表达式。
+表达式中的 `@actor` 类型变量会自动翻译为 Python 能识别的字典后再求值，所以你可以大胆的在这里使用@actor类型。
+
+[A] ->
+fork:
+    -> if (var == true) -> [B]
+    -> if (score > 5 and level >= 3) -> [C]
+
+#### 混合并行分支：
+[A] ->
+fork:
+    -> [B]
+    -> if (@Portia.hp == 0) -> [C]
+    -> if (hp.@Portia >= 100) -> [C]
+    
+
+### 合并 (join)：
+join(all):
+    [B] ->
+    [C] ->
+to [next_node]
+
+Join 在接收端定义，明确声明"我要等谁"。
+只写上一个node就行，不用写更远的链路。
+括号里的参数:
+- "all"：等所有声明的上游节点都到齐后，执行 [next_node]。
+- 某个数字几：在声明的上游节点中，只要到了几个，就执行 [next_node]，其他剩余没到的线程不跑了，直接掐线程。
+**关于线程管理**：编译器会在解析流程图时预先规划线程。fork 产生多线程，join 合并线程。
+`join(n)` 掐掉其他分支时，只会掐掉属于本次 fork 的线程，不会影响其他模块对同一 action 的调用。
+（这要求编译器为每次 fork 生成唯一的 fork_id 来追踪线程归属。）
+
+
+### 串行循环（for）：
+for含义：遍历 speaker_array，对每个元素依次执行 [C],串行任务。
+循环变量 @speaker 会自动绑定到该 action 的 @actor_expr（如果 action 的 @actor_expr 是动态变量）。
+for结束后的下一行，必须以->开头指明for循环结束后去哪里。
+例子：
+[A] -> [B] -> 
+for @speaker in speaker_array:
+    -> [C] -> [D] ->
+-> [END]
+这相当于比如说：
+[A] -> [B] -> [C] -> [D] -> [C] -> [D] -> [C] -> [D] -> [C] -> [D] -> [C] -> [D] -> [END]
+
+for循环可以和if共同使用，起到了一定的fork效果：比如这里有个狼人杀的例子：
+[B] -> 
+for @player in alive_players:
+    -> if (@player.type == ai) -> ai_speak ->
+    -> if (@player.type == human) -> human_speak ->
+-> [D]
+这相当于比如说：
+[B] -> ai_speak -> ai_speak -> ai_speak -> ai_speak -> human_speak -> ai_speak -> [D]
+编译器会自动将 `@player` 绑定到被调用的 action 的参数 `(@player)` 中。
+
+for内部内容，可以多行，语法和外部的链式语法一样。（类似mermaid，顺序不敏感）。
+但是特别的，我们需要知道for内的内容从哪里开始，到哪里结束进入下一轮循环。
+所以我们额外要求：
+在开始节点之前加一个"->"标明循环从这里开始，
+在结束节点之后加一个"->"标明此处本轮循环结束、进入下一轮循环或是完全结束。
+->开头的两行并列，就是说这里有分支。for内可以用多个开始符号"->"来创造多条分支，以方便的实现不同if条件下略微不同的循环。分支是并行的，类似fork。
+
+### 并发（par）：
+
+par含义：
+相当于先fork出很多条线，再join到同一点。但每条路径上的动作都相同或者极度相似，我们可以用par来简化写法。
+也可以理解成for的并发版。并发，无先后顺序，比如并发请求 LLM，极大提升运行速度。
+**注意**：由于 Python GIL 和线程安全问题，多个 AI 并发发言时 LLM 流式输出可能会交织打印，但功能正确性不受影响。
+在par函数体内部如果有多个node，依然是串行执行的。
+par结束后的下一行，必须以->开头指明par结束后去哪里。
+并发参数作用域仅限当前行及调用的模块参数。
+**并发参数传参**：`par` 的并发参数（如 `coder`）可以作为参数传入模块，
+   模块内部可直接通过变量名引用，或作为 `@ai({变量名})` 的动态 actor。
+
+例子1:
+[A] ->
+par @coder in coders:
+    -> &CoderSandbox(@coder, task_list[@coder]) ->
+-> [D]
+这相当于：
+      |-> &CoderSandbox(@coder_1, task_list[@coder_1]) ->| 
+[A] ->|-> &CoderSandbox(@coder_2, task_list[@coder_2]) ->|-> [D]
+      |-> &CoderSandbox(@coder_3, task_list[@coder_3]) ->| 
+        ...很多，假设coders很多，但你懒得一个一个用fork写了...
+      |-> &CoderSandbox(@coder_n, task_list[@coder_n]) ->| 
+   
+例子2:
+[START] ->
+par @coder in workers:
+    -> [A]:writecode -> [B]:trycode ->
+-> [D]
+这相当于遍历 workers，每个角色并发出发，依次执行 [A] 和 [B]。
+并发参数 @coder 写入各自线程的局部上下文，action 内部直接通过变量名取值：
+           coder1:|-> writecode -> trycode ->| 
+[START] -> coder2:|-> writecode -> trycode ->| -> [D]
+           coder3:|-> writecode -> trycode ->| 
+          ...很多，假设coders很多，但你懒得一个一个用fork写了...
+           codern:|-> writecode -> trycode ->| 
+注意：@coder 是线程局部变量，不同线程取值不同，互不干扰。
+action 内部直接用 {c} 或 @coder 引用即可，无需在 flow 中显式传参。
+for的循环变量，par的并发参数名必须与 action 定义括号里的动态变量名一致，否则引擎会直接报错并提示变量名不匹配。这样就不会出现静默用错人的情况。
+
+par内部内容，可以多行，语法和外部的链式语法一样。（类似mermaid，顺序不敏感）。
+但是特别的，我们需要知道par内的内容从哪里开始，到哪里结束进入下一轮循环。
+所以我们额外要求：
+在开始节点之前加一个"->"标明循环从这里开始，
+在结束节点之后加一个"->"标明此处本轮循环结束、进入下一轮循环或是完全结束。
+->开头的两行并列，就是说这里有分支。par内可以用多个开始符号"->"来创造多条分支，以方便的实现不同if条件下略微不同的循环。分支是并行的，类似fork。
+
+
+
+## 9. mainflow 主流程
+每个.fems剧本，有唯一的mainflow区块。
+必须有[START]和[END]，标明流程图的开始和结束。编译器运行时，会从这里的[START]开始运行。
+语法和之前说的一样，可以调用action和module。
+
+
+## 10. 核心机制
+
+- 同一 scope 内的 Agent：
+  上下文自动共享，他们能看到彼此的聊天记录，然后直接聊天就行了。
+  LLM不是函数，他们是智慧体，他们直接聊天。
+- 跨 scope 的 Agent：
+  他们没有共同经历那件事，所以当然记忆不互通。但他们依然可以通过工具调用等方式，接触到对方存的文件等。
+  FEM编译器也支持他们互相传送全局变量，但其实没必要，不如用shell工具去读文件。
+  LLM不是函数，他们是智慧体，他们调用工具。
+- FEM编译器的变量赋值：
+  不是用来让AI们彼此传递信息的。
+  变量赋值主要是为了控制流程图的走向，以及控制scope等。
+  LLM智慧体可以主动通过变量赋值，来决定自己下一步的走向（只要你在prompt里告诉他们该怎么做）。
+  有的时候为了控制工作流的流程，也可以要求人类在action动作中给某变量赋值。
+- Module 
+  内部参数自动绑定。如果Module 内需要重命名，可以用in来映射。
+- for的循环变量，par的并发参数
+  自动绑定到模块参数
+
+
+
+## 11. **FEM 编译器报错信息**
+
+- 变量未声明 → 报错，指出变量名
+- 文件不存在 → 报错，指出文件路径
+- 方法未定义 → 报错，指出方法名
+- Scope 中有无法解析的元素 → 报错
+- 数据库约束违反 → 报错（原样抛出异常）
+
+
+## 12. 完整示例
+
+meta:
+    name = 测试剧本
+    database = file:"test.db"
+    owner = [1]
+    system_safety = 这是一个安全提示
+    session = new
+
+vars:
+    memory_text = ""
+    context_text = ""
+    reply = ""
+
+code:
+    memfile = file:"utils/MemoryExample.py"
+    ctxfile = file:"utils/ContextExample.py"
+
+actors:
+    ai @ellis = soul:1
+
+memory rag10(memfile.retrieve_example):
+    in: prompt, session_id, @actor
+    out: memory_text
+
+context thisSession(ctxfile.findThisSession):
+    in: session, @actor
+    out: context_text
+
+action speak @ai(@ellis):
+    prompt: "你好，请随便说点什么。"
+    memory: rag10
+    context: thisSession
+    out: reply
+
+flow:
+    [START] -> speak -> [END]
