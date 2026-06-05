@@ -3,6 +3,8 @@ FEM Parser v5.0 — 两阶段解析器
 阶段1: 缩进块切割 (Block Builder)
 阶段2: 语义分发 (Block Evaluator) + Flow 子解析
 所有解析结果数据类及条件求值工具均在此文件。
+
+代码原则：所有代码不许写try静默兜底不报错，有错必须报错。
 """
 
 import re
@@ -11,6 +13,8 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple
 from enum import Enum
+from femCompiler.FEM_config import get_db_path
+from femBridges.getDir.get_dir import get_user_dir
 
 # ============================================================
 # 1. 基础枚举与数据类（保持不变，从旧文件迁移）
@@ -1459,15 +1463,23 @@ def parse_script(text: str, base_dir: str = ".") -> Script:
         elif t == 'flow':
             script.flow = eval_flow(block)
 
-    # 处理 database 路径
+    # 处理 database 路径 —— 基于 user_dir，避免重复拼接
     if 'database' in script.meta:
+        from femCompiler.FEM_config import get_user_dir   # 可移到文件顶部
         db_path = script.meta['database']
         if db_path.startswith('file:"') and db_path.endswith('"'):
             db_path = db_path[6:-1]
         elif db_path.startswith("file:'") and db_path.endswith("'"):
             db_path = db_path[6:-1]
+
         if not os.path.isabs(db_path):
-            db_path = os.path.join(base_dir, db_path)
+            user_dir = get_user_dir()
+            # 防止重复拼接 user_dir 的最后一级目录名
+            last_component = os.path.basename(user_dir.rstrip('/\\'))
+            if last_component and db_path.startswith(last_component + os.sep):
+                db_path = db_path[len(last_component) + 1:]
+            db_path = os.path.join(user_dir, db_path)
+
         script.meta['database'] = db_path
         
     owner_val = script.meta.get('owner')
