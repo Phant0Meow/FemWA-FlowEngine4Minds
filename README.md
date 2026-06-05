@@ -90,12 +90,13 @@ Fem有网页端零代码生成工作流。比如你想要好几个AI群聊，网
 ## 【快速开始！】 
 所以这个操作步骤够不够无脑？↓↓↓
 
-1. 下载本项目，运行后端，python mainCompiler.py --server 
-2. 输入端口，比如8000。
-3. 进入网站 https://femwa.net
-4. 页面右下角: 设置后端地址，端口输入8000，按“测试连接”，确认前后端连接成功，按“保存并连接”。
-5. 右下角输入API key. （后端在你本地，API Key 只传给自己的后端。不放心的话，看根目录环境变量模板，Key 完全不走前端）。
-6. 把这个fem代码复制到右侧Fem预览框。
+1. 下载本项目: pip install git+https://github.com/Phant0Meow/FemWA.git
+2. 运行后端: fem --server 
+3. 输入端口，比如8000。
+4. 进入我们的网站[femwa.net](https://femwa.net) 
+5. 页面右下角: 设置后端地址，端口输入8000，按“测试连接”，确认前后端连接成功，按“保存并连接”。
+6. 右下角输入API key. （后端在你本地，API Key 只传给自己的后端。不放心的话，看根目录环境变量模板，Key 完全不走前端）。
+7. 把这个fem代码复制到右侧Fem预览框。
    
 ```fems
 meta:
@@ -136,10 +137,9 @@ action wait10 @func(sleep.wait_10):
 mainflow:
   [START] -> [input]:input -> EveMove -> wait10 -> CatMove -> [input]    // 比较像mermaid语法。最后指回到[input]节点形成一个循环。
 ```
-然后你就可以和Eve以及小猫咪聊天了！
-
-7. 按“文本生图”按钮。
-8. 按页面上方“运行”。
+8. 按“文本生图”按钮。
+9. 按页面上方“运行”。
+10. 然后你就可以和Eve以及小猫咪聊天了！
 
 
 ## 设计哲学
@@ -277,12 +277,14 @@ Aha! How about using Fem to quickly validate your Agent Harness flow designs? Wh
 ## [ Quick Start! ]
 Is this brain-dead simple enough? ↓↓↓
 
-1. Clone the project and start the backend: `python mainCompiler.py --server`
-2. Enter a port, e.g., `8000`.
-3. Go to [https://femwa.net](https://femwa.net)
-4. Bottom right corner: set backend address, port `8000`, click "Test Connection", confirm the frontend and backend are connected, then click "Save & Connect".
-5. Enter your API key in the bottom right. (The backend runs on your machine, the API key is only sent to your own backend. If you're worried, check the environment variable template in the project root — your key never touches the frontend at all.)
-6. Copy this Fem code into the preview box on the right.
+1. Clone the project: pip install git+https://github.com/Phant0Meow/FemWA.git
+2. Start the backend: `fem --server`
+3. Enter a port, e.g., `8000`.
+4. Go to [https://femwa.net](https://femwa.net)
+5. Bottom right corner: set backend address, port `8000`, click "Test Connection", confirm the frontend and backend are connected, then click "Save & Connect".
+6. Enter your API key in the bottom right.
+   (The backend runs on your machine, the API key is only sent to your own backend. If you're worried, check the environment variable template in the project root — your key never touches the frontend at all.)
+7. Copy this Fem code into the preview box on the right.
 
 ```fems
 meta:
@@ -323,10 +325,9 @@ action wait10 @func(sleep.wait_10):
 mainflow:
   [START] -> [input]:input -> EveMove -> wait10 -> CatMove -> [input]    // Mermaid-like syntax. The arrow back to [input] forms a loop.
 ```
-Now you can chat with Eve and the little cat!
-
-7. Click the "Text to Graph" button.
-8. Click "Run" at the top of the page.
+8. Click the "Text to Graph" button.
+9. Click "Run" at the top of the page.
+10. Now you can chat with Eve and the little cat!
 
 
 
