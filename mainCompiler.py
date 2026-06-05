@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#mainCompiler.py
 """
 FEM Work Automata - FastAPI 服务器
 提供前后端通信接口，支持 SSE 流式事件推送
@@ -228,6 +228,10 @@ async def api_stop(run_id: str):
     else:
         return JSONResponse({"error": "runner not available"}, status_code=400)
 
+@app.get("/api/ping")
+async def api_ping():
+    """健康检查端点，供前端测试连接使用"""
+    return {"status": "ok", "message": "FEM backend is running"}
 
 @app.post("/api/souls/create")
 async def api_create_soul(request: Request):
@@ -340,13 +344,35 @@ if __name__ == "__main__":
     parser.add_argument("script", nargs="?", help=".fems 文件路径（CLI 模式）")
     parser.add_argument("--server", action="store_true", help="启动 FastAPI 服务器")
     parser.add_argument("--host", default="0.0.0.0", help="服务器监听地址")
-    parser.add_argument("--port", type=int, default=8000, help="服务器监听端口")
+    parser.add_argument("--port", type=int, default=None, help="服务器监听端口（不指定则交互式输入）")
     args = parser.parse_args()
 
     if args.server:
         import uvicorn
-        print(f"🚀 FEM Work Automata 服务器启动: http://{args.host}:{args.port}")
-        uvicorn.run(app, host=args.host, port=args.port)
+
+        # 如果没有通过 --port 指定端口，则要求用户输入
+        port = args.port
+        if port is None:
+            while True:
+                try:
+                    user_input = input("请输入后端端口号 (默认 8000): ").strip()
+                    port = int(user_input) if user_input else 8000
+                    if 1 <= port <= 65535:
+                        break
+                    else:
+                        print("❌ 端口号必须在 1~65535 之间，请重新输入")
+                except ValueError:
+                    print("❌ 请输入有效的数字")
+                except (KeyboardInterrupt, EOFError):
+                    print("\n已取消启动")
+                    sys.exit(0)
+
+        print(f"🚀 FEM Work Automata 服务器启动: http://{args.host}:{port}")
+        print("\n请将以下信息填入前端网页：")
+        print(f"  基础地址 (host)： http://{args.host.replace('0.0.0.0', 'localhost')}")
+        print(f"  端口 (port)： {port}")
+        print()
+        uvicorn.run(app, host=args.host, port=port)
     elif args.script:
         cli_main(args.script)
     else:
