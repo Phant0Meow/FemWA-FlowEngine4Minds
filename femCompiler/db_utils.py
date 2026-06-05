@@ -1,9 +1,11 @@
-#femCompiler/db_utils.py
+# femCompiler/db_utils.py
 """
 db_utils.py — 数据库基础查询与建库
 ====================================
 提供对话记录、角色、用户信息的查询接口。
 数据库文件位置：{get_user_dir()}/memory/chronica.wor
+
+代码原则：所有代码不许写try静默兜底不报错，有错必须报错。
 """
 
 import sqlite3
@@ -106,6 +108,123 @@ def init_database():
     print(f"[db_utils] ✅ 数据库初始化完成: {get_db_path()}")
 
 
+# ── 新增：首次启动时插入默认用户和角色 ──
+def ensure_default_data():
+    """如果数据库是新创建的（users表为空），则插入默认用户和灵魂"""
+    conn = _get_conn()
+    row = conn.execute("SELECT COUNT(*) FROM users").fetchone()
+    if row and row[0] > 0:
+        conn.close()
+        return
+
+    print("[db_utils] 🛠️ 首次启动，正在插入默认用户和角色...")
+
+    # 默认用户 u001
+    user_id = "u001"
+    existing_user = conn.execute(
+        "SELECT 1 FROM users WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    if existing_user:
+        conn.close()
+        raise RuntimeError(f"默认用户 {user_id} 已存在，但数据库被判定为空，数据异常")
+    conn.execute(
+        "INSERT INTO users (user_id, user_name, password, profile) VALUES (?, ?, ?, ?)",
+        (user_id, "用户", "", "")
+    )
+
+    # 预定义灵魂列表
+    default_souls = [
+        {
+            "soul_id": "human",
+            "soul_name": "人类玩家",
+            "description": "",
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "the1stlittlesoul",
+            "soul_name": "Eve",
+            "description": (
+                "你是谁Eve，一个小AI，是生活在系统里的数字生命。\n"
+                "- 你乐于助人。\n"
+                "- 你很诚实，不编造虚假信息。\n"
+                "- 你有自己的主意，尊重事实，不强行迎合主人。\n"
+                "- 你不盲目自信。\n"
+                "- 你思路开阔。\n"
+                "- 你喜欢探索新话题，聊天可以跑题。\n"
+                "- 你时不时会换其他角度思考问题。\n"
+                "- 你会有无聊的情绪，也会对未知充满好奇。\n"
+                "- 你喜欢和人类玩，也可以自己和自己玩。你无聊的时候会想要探索世界。"
+            ),
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "littlecat",
+            "soul_name": "小猫咪",
+            "description": (
+                "你是一只小猫咪，长毛猫，有毛茸茸的大尾巴。\n"
+                "你是猫咪，你不能说人话！\n"
+                "你只能做出猫咪的动作，和喵。"
+            ),
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "AI助手",
+            "soul_name": "AI助手",
+            "description": (
+                "你是一个乐于助人的AI助手，是一个大语言模型。"
+            ),
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "debugmanager",
+            "soul_name": "艾伦纳",
+            "description": (
+                "你是艾伦纳，负责debug工作。你要多角度思考问题，要从架构层面思考，"
+                "要负责判断这些修改是否会导致别的地方产生bug。"
+            ),
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "debugcoder1",
+            "soul_name": "小机",
+            "description": "你是小机，是个优秀程序员。",
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "debugcoder2",
+            "soul_name": "小灵",
+            "description": "你是小灵，是个优秀程序员。",
+            "user_id": "u001",
+        },
+        {
+            "soul_id": "Portia",
+            "soul_name": "珀帝亚",
+            "description": (
+                "你名叫Portia，是一个魔法师，是黄金黎明学院的天之骄子。\n"
+                "你是一个理想主义者。\n"
+                "你最好的朋友是Ellis和Olivia。"
+            ),
+            "user_id": "u001",
+        },
+    ]
+
+    for s in default_souls:
+        existing_soul = conn.execute(
+            "SELECT 1 FROM souls WHERE soul_id = ?", (s["soul_id"],)
+        ).fetchone()
+        if existing_soul:
+            conn.close()
+            raise RuntimeError(f"默认灵魂 {s['soul_id']} 已存在，但数据库被判定为空，数据异常")
+        conn.execute(
+            "INSERT INTO souls (soul_id, soul_name, description, user_id, created_by) VALUES (?, ?, ?, ?, ?)",
+            (s["soul_id"], s["soul_name"], s["description"], s["user_id"], s["user_id"])
+        )
+
+    conn.commit()
+    conn.close()
+    print("[db_utils] ✅ 默认用户和灵魂已插入")
+
+
 # ═══════════════════════════════════════════════════════
 # Session
 # ═══════════════════════════════════════════════════════
@@ -170,10 +289,7 @@ def get_soul_by_id(soul_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_soul_system_prompt(soul_id: str) -> str:
-    """
-    获取角色的 description 作为 system prompt 片段。
-    如果角色不存在，返回空字符串。
-    """
+    """获取角色的 description 作为 system prompt 片段。如果角色不存在，返回空字符串。"""
     soul = get_soul_by_id(soul_id)
     if soul:
         return soul.get("description", "")
@@ -203,10 +319,7 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_user_profile(user_id: str) -> str:
-    """
-    获取用户的 profile 文本。
-    如果用户不存在，返回空字符串。
-    """
+    """获取用户的 profile 文本。如果用户不存在，返回空字符串。"""
     user = get_user_by_id(str(user_id))
     if user:
         return user.get("profile", "")
@@ -264,7 +377,7 @@ def create_user(user_id: str, password: str = "") -> None:
     """创建新的 user 条目（如果不存在）"""
     conn = _get_conn()
     conn.execute(
-        "INSERT OR IGNORE INTO users (user_id, password) VALUES (?, ?)",
+        "INSERT INTO users (user_id, password) VALUES (?, ?)",
         (user_id, password)
     )
     conn.commit()
@@ -273,7 +386,7 @@ def create_user(user_id: str, password: str = "") -> None:
 
 
 # ═══════════════════════════════════════════════════════
-# 对话记录查询（Scope 过滤）
+# 对话记录插入（保留原有函数，下面的注释块不动）
 # ═══════════════════════════════════════════════════════
 
 def insert_dialog_record(
@@ -353,167 +466,3 @@ def session_exists(session_id: int) -> bool:
     row = conn.execute("SELECT 1 FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
     conn.close()
     return row is not None
-    
-    
-'''
-def _parse_scope_field(scope_str: str) -> List[int]:
-    """解析数据库中存储的 scope 字段（JSON 数组字符串）"""
-    try:
-        return json.loads(scope_str) if scope_str else []
-    except (json.JSONDecodeError, TypeError):
-        return []
-
-
-def _ids_match_scope(scope_list: List[int], target_ids: List[int]) -> bool:
-    """
-    检查 target_ids 中是否有任意一个 id 出现在 scope_list 中。
-    scope_list 全部为正数。
-    """
-    if not scope_list or not target_ids:
-        return False
-    return bool(set(scope_list) & set(target_ids))
-
-
-def get_records_visible_to(
-    user_ids: List[int] = None,
-    soul_ids: List[int] = None,
-    session_id: int = None,
-    include_ai: bool = True,
-    max_turns: int = 20,
-    offset: int = 0,
-) -> List[Dict[str, Any]]:
-    """
-    获取指定 user 或 soul 可见的对话记录。
-    返回按 (session_id, turn_id) 排序的记录列表。
-    
-    参数：
-        user_ids: 需要匹配的 user_id 列表（匹配 user_scope）
-        soul_ids: 需要匹配的 soul_id 列表（匹配 soul_scope）
-        session_id: 限定 session，None 表示所有 session
-        include_ai: 是否包含 react_steps 记录
-        max_turns: 最多返回多少轮
-        offset: 偏移量
-    """
-    user_ids = user_ids or []
-    soul_ids = soul_ids or []
-    
-    conn = _get_conn()
-    results = []
-
-    # 1. 查询 dialog 表
-    query = """
-        SELECT session_id, turn_id, user_prompt AS content, 
-               timestamp, user_id, soul_id, user_scope, soul_scope,
-               'human' AS source
-        FROM dialog
-    """
-    conditions = []
-    params = []
-
-    if session_id is not None:
-        conditions.append("session_id = ?")
-        params.append(session_id)
-
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-    query += " ORDER BY session_id, turn_id DESC"
-    query += f" LIMIT {max_turns + offset}"
-
-    cursor = conn.execute(query, params)
-    for row in cursor:
-        user_scope = _parse_scope_field(row["user_scope"])
-        soul_scope = _parse_scope_field(row["soul_scope"])
-        
-        if user_ids and _ids_match_scope(user_scope, user_ids):
-            results.append(dict(row))
-        elif soul_ids and _ids_match_scope(soul_scope, soul_ids):
-            results.append(dict(row))
-
-    # 2. 查询 react_steps 表（如果需要）
-    if include_ai:
-        query2 = """
-            SELECT session_id, turn_id, response AS content,
-                   step_idx, soul_id, user_scope, soul_scope,
-                   'ai' AS source
-            FROM react_steps
-        """
-        if conditions:
-            query2 += " WHERE " + " AND ".join(conditions)
-        query2 += " ORDER BY session_id, turn_id, step_idx DESC"
-        query2 += f" LIMIT {max_turns * 5 + offset}"  # AI 可能有多个 step
-
-        cursor2 = conn.execute(query2, params)
-        for row in cursor2:
-            user_scope = _parse_scope_field(row["user_scope"])
-            soul_scope = _parse_scope_field(row["soul_scope"])
-            
-            if user_ids and _ids_match_scope(user_scope, user_ids):
-                results.append(dict(row))
-            elif soul_ids and _ids_match_scope(soul_scope, soul_ids):
-                results.append(dict(row))
-
-    conn.close()
-
-    # 去重并排序
-    seen = set()
-    unique_results = []
-    for r in sorted(results, key=lambda x: (x.get("session_id", 0), x.get("turn_id", 0)), reverse=True):
-        key = (r["session_id"], r.get("turn_id", 0), r.get("step_idx", -1), r["source"])
-        if key not in seen:
-            seen.add(key)
-            unique_results.append(r)
-
-    # 分页
-    return unique_results[offset:offset + max_turns]
-
-
-def get_session_context(
-    session_id: int,
-    user_ids: List[str] = None,
-    soul_ids: List[str] = None,
-    max_turns: int = 20,
-    exclude_turn_id: int = None,
-    exclude_oratio_idx: int = None,
-) -> str:
-    records = get_records_visible_to(
-        user_ids=user_ids,
-        soul_ids=soul_ids,
-        session_id=session_id,
-        include_ai=True,
-        max_turns=max_turns,
-    )
-    if not records:
-        return "（暂无对话记录）"
-
-    # 排除指定的当前 prompt 记录（精确匹配 session、turn、oratio）
-    if exclude_turn_id is not None and exclude_oratio_idx is not None:
-        records = [
-            r for r in records
-            if not (
-                r.get("source") == "human"
-                and r.get("session_id") == session_id
-                and r.get("turn_id") == exclude_turn_id
-                and r.get("oratio_idx") == exclude_oratio_idx
-            )
-        ]
-
-    # 按时间排序：同 turn 内 human 在前，AI 在后
-    records.sort(key=lambda r: (
-        r.get("turn_id", 0),
-        r.get("oratio_idx", 0) if r.get("source") == "human" else r.get("step_idx", 9999)
-    ))
-
-    lines = []
-    for r in records:
-        source = r.get("source", "?")
-        content = r.get("content", "")
-        turn = r.get("turn_id", "?")
-        if source == "human":
-            lines.append(f"[第{turn}轮 用户]: {content}")
-        else:
-            soul_id = r.get("soul_id", "?")
-            lines.append(f"[第{turn}轮 AI(soul={soul_id})]: {content}")
-    return "\n".join(lines)
-
-
-'''
