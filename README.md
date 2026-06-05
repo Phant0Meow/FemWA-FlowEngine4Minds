@@ -58,7 +58,7 @@ action EveMove @ai(@Eve):
 
 action CatMove @ai(@猫):
   prompt: |
-    你是一只小猫，请自由决定干什么或者说什么。
+    你是一只小猫，小猫不能说人话。请做小猫会做的事～
     （注意看清上下文，分清你自己的角色，只进行自己的动作和语言，不要替别的角色发言。简短一点。）
   scope: [@Eve, @猫]
 
@@ -139,7 +139,7 @@ action EveMove @ai(@Eve):
 
 action CatMove @ai(@Cat):
   prompt: |
-    You are a little cat. Feel free to decide what to do or say.
+    You are a little cat, and cats can't speak human language. Just do things a cat would do~
     (Pay attention to the context, distinguish your own role, and only perform your own actions and speech. Do not speak for other characters. Keep it brief.)
   scope: [@Eve, @Cat]
 
