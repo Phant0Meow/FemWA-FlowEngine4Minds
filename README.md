@@ -331,7 +331,7 @@ mainflow:
 - 🔗 **Decoupled Flow**: FemWA completely separates "flow definition" from "code implementation". The harness is rigid; FEM is alive — change the flow just by editing the script, the compiler handles the rest.
 - 🎬 **Scripted Workflows**: Syntax inspired by YAML + Mermaid + Python. Writing multi-agent interaction feels like writing a script. The AIs *present* naturally share context; just a few lines can run a mini Stanford Town.
 - 🧠 **Context Isn't a Variable**: An LLM is an intelligence, not a function. It reads context and chats naturally. Don't pass parameters unless necessary.
-- 🧩 **Original @actor Type**: An intelligence (LLM or human) as a new data type. Fem syntax supports directly referencing its attributes.
+- 🧩 **Original @actor Type**: A mind (LLM or human) as a new data type. Fem syntax supports directly referencing its attributes.
 - 🏷️ **Soul ID**: Every agent character has a unique Soul ID. This enables cross-script, cross-session memory retrieval, giving agents a continuous lived experience.
 
 
@@ -347,7 +347,7 @@ mainflow:
 
 
 ## My Real-World Case
-- While debugging code, I used the femwa.net frontend to build a Fem script called "debug-tool.fems" in about 20 minutes. It's amazing at finding complex, hidden bugs.
+- While debugging code, I used the femwa.net frontend to build a Fem script debug神器.fems in about 20 minutes. It's amazing at finding complex, hidden bugs.
 - Once, the web version of Claude Sonnet failed to fix a bug after three attempts. I ran this Fem script + Xiaomi MiMo (without thinking mode) and it found the bug... I was stunned. Is this the power of a harness...?
 - Then it hit me — I wanted to jump in and intervene while the AI was running, to stop them going off track. I spent half a minute adding a Human speech node, then ran it again with one click. Changing the flow is just so convenient.
 
@@ -357,7 +357,7 @@ mainflow:
 - Issues welcome! If you find a bug, let me know~
 - Pull Requests welcome!
 - Submit your own `.fems` scripts! That's a great contribution too~
-  (I just put my personal `debug-tool.fems` in the folder as an example haha. Feel free to try it~ But I'd recommend this script only for tricky, hidden bugs; otherwise I’ll worry about your Tokens — the two concurrent loops and multiple discussion rounds use a lot of tokens. Simple bugs probably suit other script flows better. Share yours!)
+  (I just put my personal `debug神器.fems` in the folder as an example haha. Feel free to try it~ But I'd recommend this script only for tricky, hidden bugs; otherwise I’ll worry about your Tokens — the two concurrent loops and multiple discussion rounds use a lot of tokens. Simple bugs probably suit other script flows better. Share yours!)
 
 
 
