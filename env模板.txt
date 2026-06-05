@@ -1,0 +1,95 @@
+# 大模型 API 密钥配置（根据你使用的服务商填写对应的三项）
+# 所有配置均遵循 OpenAI 兼容接口标准
+
+###############################################################
+#
+#  【使用说明】
+#
+# 把你的APIkey和地址，以及模型名，填入本文件。
+# 放心，只在你本地的后端使用，不上传，你的APIkey是安全的。
+#
+# 将这个文件的文件名改成“.env”，注意开头是“.”，无拓展名。
+# 以后依然可以用记事本打开它。
+#
+# 备注：电脑有时会隐藏拓展名，你需要显示拓展名，并且删除“.txt”的部分。
+#
+###############################################################
+
+
+# ── DeepSeek API ──
+# 注意: 旧名称 deepseek-chat / deepseek-reasoner 将于 2026-07-24 弃用，现已全面切换至 v4 系列
+DEEPSEEK_API_KEY=
+DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
+DEEPSEEK_API_MODEL=deepseek-v4-flash          # 主力通用模型，支持1M上下文
+
+
+# ── 智谱 GLM (BigModel) ──
+GLM_API_KEY=
+GLM_API_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
+GLM_API_MODEL=glm-5.1                        # 最新旗舰模型
+
+
+# ── Kimi (Moonshot AI) ──
+KIMI_API_KEY=
+KIMI_API_URL=https://api.moonshot.cn/v1/chat/completions
+KIMI_API_MODEL=kimi-k2.5                     # 最新多模态Agentic旗舰模型
+
+
+# ── MiniMax ──
+MINIMAX_API_KEY=
+MINIMAX_API_URL=https://api.minimax.io/v1/chat/completions
+MINIMAX_API_MODEL=MiniMax-M2.7               # 最新通用大模型
+
+
+# ── Claude (Anthropic) ──
+# 模型 ID 格式统一为 claude-{系列}-{版本号}
+# 注意: 请关注官方文档以获取最新模型 ID，更新节奏非常快
+CLAUDE_API_KEY=
+CLAUDE_API_URL=https://api.anthropic.com/v1/chat/completions
+CLAUDE_API_MODEL=claude-opus-4-8             # 2026-05-28 发布的最新旗舰模型
+
+
+# ── Google Gemini ──
+# Gemini 3.5 Flash 已于 2026-05-19 发布，为 Flash 系列最强模型
+GEMINI_API_KEY=
+GEMINI_API_URL=https://generativelanguage.googleapis.com/v1beta/chat/completions
+GEMINI_API_MODEL=gemini-3.5-flash            # 最新 Flash 模型
+
+
+# ── 小米 MiMo ──
+# MIMO 配置
+MIMO_API_KEY=
+MIMO_API_URL=https://token-plan-cn.xiaomimimo.com/v1/chat/completions
+MIMO_API_MODEL=mimo-v2.5-pro
+
+# ── 百度文心一言 (ERNIE) ──
+# 注意: 百度 API 鉴权机制特殊，需先通过 API Key + Secret Key 获取 access_token
+BAIDU_API_KEY=
+BAIDU_API_URL=https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions
+BAIDU_API_MODEL=ernie-5.1                   # 最新文心大模型
+
+
+# ── 阿里通义千问 (DashScope) ──
+QIANWEN_API_KEY=
+QIANWEN_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+QIANWEN_API_MODEL=qwen3.7-max               # 最新旗舰全能基座模型
+
+
+# ── 腾讯混元 ──
+HUNYUAN_API_KEY=
+HUNYUAN_API_URL=https://api.hunyuan.cloud.tencent.com/v1/chat/completions
+HUNYUAN_API_MODEL=hy3-preview               # 腾讯 2026-04 发布的最新自研 MoE 旗舰模型
+
+
+# ── 讯飞星火 (Spark) ──
+# 讯飞星火 API 基于 WebSocket 协议，配置方式可能与 REST API 有所不同
+SPARK_API_KEY=
+SPARK_API_URL=https://spark-api.xf-yun.com/v2.1/chat
+SPARK_API_MODEL=spark-x                     # 星火 X2 深度推理正式版本
+
+
+# ── OpenAI 兼容系列 ──
+# 适用于 OpenAI 官方接口或其他兼容服务（如本地 ollama、vllm 等）
+OPENAI_API_KEY=
+OPENAI_API_URL=https://api.openai.com/v1/chat/completions
+OPENAI_API_MODEL=gpt-5
