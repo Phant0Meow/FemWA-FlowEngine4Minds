@@ -32,7 +32,7 @@ Agent 工作流改一次，要翻 5 个文件、调 2 小时、祈祷别崩。
 
 **还是FemWA**：
 就算不用网页端拖拽，纯手写，Fem代码也只需要200～300行就可跑通上述狼人杀全流程（其中还有prompt占行数）。
-视角分离只需要一行“scope: [@上帝] + 狼队”，并发投票只需要一行“par @players in allplayer:”。
+视角分离只需要一行“scope: [@上帝] + 狼队”，并发投票只需要一行“par @player in allplayers:”。
 
 
 # 这是一种编排多Agent剧本的语言 + 一个编译器。**
@@ -219,7 +219,7 @@ Zero-code drag-and-drop on the web + 150 lines of Python supplement. Truly playa
 
 **Or with FemWA**:
 Even without drag-and-drop, writing pure Fem script, you only need 200~300 lines to run the full Werewolf flow above (including prompt lines).
-Perspective isolation needs just one line: `scope: [@God] + werewolves`. Concurrent voting needs just one line: `par @players in allplayer:`.
+Perspective isolation needs just one line: `scope: [@God] + werewolves`. Concurrent voting needs just one line: `par @player in allplayers:`.
 
 
 **This is a language for orchestrating multi-agent scripts + a compiler.**
