@@ -4,6 +4,8 @@ FEM_config.py — 全局运行时配置（单例）
 统一管理数据库路径等配置。
 由 FEM 解释器在解析 meta 后调用 set_db_path() 设置，
 其他模块调用 get_db_path() 读取。
+
+代码原则：所有代码不许写try静默兜底不报错，有错必须报错。
 """
 
 import os
