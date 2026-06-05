@@ -1,4 +1,4 @@
-[![License: MIT](https://img.shields.io/badge/License-Apache2.0-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache2.0](https://img.shields.io/badge/License-Apache2.0-yellow.svg)](https://opensource.org/licenses/Apache2.0)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Live Demo](https://img.shields.io/badge/Frontend-Script%20Generator-green.svg)](https://femwa.net)
 
@@ -63,6 +63,12 @@ Fem有网页端零代码生成工作流。比如你想要好几个AI群聊，网
 - 而且还有些零代码平台，他们不让你带走你的工作流，你只能在他们平台上用。
   Fem却是后端编译器开源，你把编译器拿走放进你的项目，你的项目就可以跑任何fem剧本。
 - 而且Fem的多agent并发架构也挺好的。
+
+**你可能会说**：
+我是专门写Agent Harness的，用不上这种流程图啦。
+
+**FemWA**：
+啊哈，要不要来试试用fem快速验证 Agent Harness 流程设计？有了想法，15 分钟用fem搭出来先跑一遍看看效果～
 
 
 
@@ -137,26 +143,29 @@ mainflow:
 
 
 ## 设计哲学
-- **流程解耦**：FemWA 把「流程定义」和「代码实现」彻底解耦。Harness 是死的，FEM 是活的——改流程只需要改剧本，其他交给编译器。
+- 🔗 **流程解耦**：FemWA 把「流程定义」和「代码实现」彻底解耦。Harness 是死的，FEM 是活的——改流程只需要改剧本，其他交给编译器。
 - 🎬 **用剧本写流程**：语法灵感来自 YAML + Mermaid + Python，写多 Agent 交互就像写剧本，让**在场**的 AI 自然地共享上下文，极短代码就能跑一个简易版斯坦福小镇。
-- **上下文不是变量**：LLM 是智慧体，不是函数。LLM 阅读上下文，自然聊天，非必要不传参。
-- **原创 @actor 类型**：智慧体（LLM或人）作为一种新的数据类型，fem语法支持直接引用其属性。
-- **灵魂id**：每个agent角色有唯一灵魂id，这支持他们跨剧本、跨session检索记忆。可塑造Agent的经历连续性。
+- 🧠 **上下文不是变量**：LLM 是智慧体，不是函数。LLM 阅读上下文，自然聊天，非必要不传参。
+- 🧩 **原创 @actor 类型**：智慧体（LLM或人）作为一种新的数据类型，fem语法支持直接引用其属性。
+- 🏷️ **灵魂id**：每个agent角色有唯一灵魂id，这支持他们跨剧本、跨session检索记忆。可塑造Agent的经历连续性。
+
 
 
 ## 给开发者
-- **流程控制**：语法原生支持串行、多分支、while循环，for循环、par并行、join汇入控制、if条件判断。
-- **prompt f-string**：变量直接写进 prompt，告别拼接地狱。
-- **支持变量**：scope、执行者、if判断条件、for条件、par条件等多处支持变量，更灵活。
-- **并发全开**：Asyncio + 线程池 + 进程池，多线并发不卡顿。
-- **方便集成**：后端纯 Python 编译器开源，替换LLM桥接模块、在你的数据库里加上fem需要的几列，即可嵌入你的系统。
-- **阅读文档**：根目录下两份文档扔给 AI 看，或者把源代码扔给AI，有问题直接问他们。
+- 🔀 **流程控制**：语法原生支持串行、多分支、while循环，for循环、par并行、join汇入控制、if条件判断。
+- ✍️ **prompt f-string**：变量直接写进 prompt，告别拼接地狱。
+- 🔄 **支持变量**：scope、执行者、if判断条件、for条件、par条件等多处支持变量，更灵活。
+- ⚡ **并发全开**：Asyncio + 线程池 + 进程池，多线并发不卡顿。
+- 🔌 **方便集成**：后端纯 Python 编译器开源，替换LLM桥接模块、在你的数据库里加上fem需要的几列，即可嵌入你的系统。
+- 📖 **阅读文档**：根目录下两份文档扔给 AI 看，或者把源代码扔给AI，有问题直接问他们。
+
 
 
 ## 本人真实案例
 - 写代码debug的时候，我用 femwa.net 的前端 20 分钟搭出的fem剧本 “debug神器.fems”，找复杂隐蔽 bug 超好用。
 - 有一次网页版 Claude Sonnet 改了三遍都没找到的 bug，用这个fem剧本 + 不开思考的小米 MiMo 给我找出来了……我都惊呆了。这就是harness的力量吗……
 - 然后我突然一拍脑袋想到，在AI跑流程的时候我想随时插话，免得他们跑偏，就用半分钟时间加了一个人类发言节点，接着一键跑通。改流程真是太方便了。
+
 
 
 ## 欢迎试用、反馈问题、贡献代码！
@@ -166,8 +175,8 @@ mainflow:
   (我就把自用的 debug神器.fems 放文件夹里当示例了哈哈哈。欢迎你们也试试～不过这个剧本建议只用来找复杂隐蔽的 bug 哦，不然我心疼你的 Token，两处并发和多轮讨论挺消耗TOKEN的。简单bug大概更适配别的剧本流程，欢迎你们分享！)
 
 
+
 P.S.
-- **快速验证 Agent Harness 流程设计**：有了想法，15 分钟用fem搭出来跑一遍。
 - **用 FEM 回答训练模型**：比如fem流程约束"缺少信息必须先问"……求求你们蒸馏一下这个吧，现在的 LLM 不肯承认自己无法回答，缺信息也要瞎猜。
 
 - 最后还有一个非常有想象力的特性，或许你们会觉得有意思：
