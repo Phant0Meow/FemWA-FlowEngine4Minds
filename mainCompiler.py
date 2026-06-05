@@ -1,11 +1,13 @@
-#mainCompiler.py
+# femCompiler.py
 """
 FEM Work Automata - FastAPI 服务器
 提供前后端通信接口，支持 SSE 流式事件推送
 
 用法：
-  服务器模式：python3 main.py --server
-  CLI 模式：  python3 main.py <script.fems>
+  服务器模式：python3 femCompiler.py --server
+  CLI 模式：  python3 femCompiler.py <script.fems>
+  
+代码原则：所有代码不许写try静默兜底不报错，有错必须报错。
 """
 
 import sys
@@ -38,6 +40,14 @@ app.add_middleware(
 
 # ── 运行状态存储 ──
 _runs: dict = {}  # run_id -> { "events": queue, "thread": Thread, "done": Event }
+
+
+# ── 新增：数据库就绪检查（保证首次启动时自动建表+插入默认角色） ──
+def prepare_database():
+    """确保数据库及默认数据就绪（首次启动自动建表+插入默认角色）"""
+    from femCompiler.db_utils import init_database, ensure_default_data
+    init_database()
+    ensure_default_data()
 
 
 # ══════════════════════════════════════════════════
@@ -103,7 +113,6 @@ async def api_run(request: Request):
             # 关闭引擎，释放线程池和进程池
             if runner:
                 try:
-                    # 在后台线程中没有事件循环，用 asyncio.run 临时创建
                     import asyncio
                     asyncio.run(runner.engine.shutdown())
                 except Exception as e:
@@ -142,7 +151,6 @@ async def api_stream(run_id: str):
             try:
                 item = event_queue.get(timeout=1.0)
                 if item is None:
-                    # 流结束，统一用 data: 发送
                     yield f"data: {json.dumps({'type': 'done', 'data': {}})}\n\n"
                     break
                 event_type = item.get("event", "message")
@@ -156,7 +164,6 @@ async def api_stream(run_id: str):
                 if done_event.is_set():
                     yield f"data: {json.dumps({'type': 'done', 'data': {}})}\n\n"
                     break
-                # 心跳也改成统一格式
                 yield f"data: {json.dumps({'type': 'heartbeat', 'data': {}})}\n\n"
 
     return StreamingResponse(
@@ -168,8 +175,8 @@ async def api_stream(run_id: str):
             "X-Accel-Buffering": "no",
         },
     )
-    
-    
+
+
 @app.post("/api/run/{run_id}/resume")
 async def api_resume(run_id: str, request: Request):
     """恢复暂停的任务"""
@@ -195,7 +202,7 @@ async def api_pause(run_id: str):
 
     runner = _runs[run_id].get("runner")
     if runner:
-        runner.stop()   # 复用全局立刻停止逻辑
+        runner.stop()
         return {"status": "ok"}
     else:
         return JSONResponse({"error": "runner not available"}, status_code=400)
@@ -209,8 +216,11 @@ async def api_human_input(run_id: str, request: Request):
     print(f"[main.py] /human-input 收到 body: {body}")
     runner = _runs[run_id].get("runner")
     if runner and runner._human_input_event is not None:
-        runner.engine.human_input.provide_input("main_human", body)
-        print(f"[main.py] /human-input 已透传 body 给 provide_input")
+        wait_key = body.get("wait_key")           # 从前端发来的数据中取频道名
+        if not wait_key:
+            return JSONResponse({"error": "缺少 wait_key"}, status_code=400)
+        runner.engine.human_input.provide_input(wait_key, body)  # 使用正确的频道
+        print(f"[main.py] /human-input 已透传 body 给 provide_input (wait_key={wait_key})")
         return {"status": "ok"}
     return JSONResponse({"error": "runner not ready for input"}, status_code=400)
 
@@ -230,7 +240,6 @@ async def api_stop(run_id: str):
 
 @app.get("/api/ping")
 async def api_ping():
-    """健康检查端点，供前端测试连接使用"""
     return {"status": "ok", "message": "FEM backend is running"}
 
 @app.post("/api/souls/create")
@@ -241,7 +250,6 @@ async def api_create_soul(request: Request):
         get_user_password, create_soul, create_user,
     )
 
-    # 确保数据库已初始化
     init_database()
 
     body = await request.json()
@@ -251,25 +259,18 @@ async def api_create_soul(request: Request):
     user_id = body.get("user_id", "").strip()
     password = body.get("password", "").strip()
 
-    # ── 参数校验 ──
     if not soul_id:
         return JSONResponse({"error": "soul_id 不能为空"}, status_code=400)
     if not user_id:
         return JSONResponse({"error": "user_id 不能为空"}, status_code=400)
-
-    # soul_id 只允许英文和数字
     if not soul_id.isalnum():
         return JSONResponse({"error": "soul_id 只允许英文字母和数字"}, status_code=400)
-
-    # user_id 只允许英文和数字
     if not user_id.isalnum():
         return JSONResponse({"error": "user_id 只允许英文字母和数字"}, status_code=400)
 
-    # soul_id 禁止重名
     if check_soul_id_exists(soul_id):
         return JSONResponse({"error": f"soul_id '{soul_id}' 已存在，请换一个不重复的 ID"}, status_code=409)
 
-    # user_id 重名时需要验证密码
     if check_user_id_exists(user_id):
         stored_password = get_user_password(user_id) or ""
         if password != stored_password:
@@ -278,12 +279,8 @@ async def api_create_soul(request: Request):
                 status_code=409,
             )
 
-    # ── 写入数据库 ──
     try:
-        # 创建 soul 条目
         create_soul(soul_id, soul_name, description, user_id)
-
-        # 创建 user 条目（如果不存在）
         if not check_user_id_exists(user_id):
             create_user(user_id, password)
 
@@ -312,16 +309,13 @@ def cli_main(fems_file: str):
     base_dir = os.path.dirname(os.path.abspath(fems_file))
     script = parse_script(text, base_dir=base_dir)
 
-    # 1. 先打印解析树（供你确认）
     print(pprint_script(script))
 
-    # 2. 询问是否运行
     user_input = input("\n是否运行本剧本？(y/N): ").strip().lower()
     if user_input != 'y':
         print("已取消运行。")
         sys.exit(0)
 
-    # 3. 确定运行后，立即清屏
     os.system('clear' if os.name != 'nt' else 'cls')
     sys.stdout.flush()
     os.system('clear' if os.name != 'nt' else 'cls')
@@ -331,7 +325,6 @@ def cli_main(fems_file: str):
     os.system('clear' if os.name != 'nt' else 'cls')
     sys.stdout.flush()
 
-    # 4. 然后启动运行（此时屏幕是干净的）
     run_script(script, base_dir=base_dir)
 
 
@@ -348,9 +341,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.server:
+        prepare_database()                    # ← 新增：启动服务器前确保数据库就绪
+
         import uvicorn
 
-        # 如果没有通过 --port 指定端口，则要求用户输入
         port = args.port
         if port is None:
             while True:
@@ -374,6 +368,7 @@ if __name__ == "__main__":
         print()
         uvicorn.run(app, host=args.host, port=port)
     elif args.script:
+        prepare_database()                    # ← 新增：CLI 模式下也确保数据库就绪
         cli_main(args.script)
     else:
         parser.print_help()
