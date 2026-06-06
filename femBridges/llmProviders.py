@@ -151,19 +151,41 @@ def stream_chat(
     stop_event=None,
     api_key: str = None,
     api_url: str = None,
+    model: str = None,
 ) -> Generator[str, None, None]:
     """
     统一的流式聊天接口
     provider: 供应商名称，如 'deepseek'
     messages: 已组装的消息列表 [{"role":"system","content":"..."}, ...]
+    model: 用户传入的模型名，优先于环境变量或默认模型
     返回一个生成器，逐块产生回答文本（str）
     """
-    cfg = get_provider_config(provider)
-    # 用户传入的 api_key / api_url 优先
+    # 如果传入了 api_key，直接构建配置，不检查环境变量
     if api_key:
-        cfg["api_key"] = api_key
-    if api_url:
-        cfg["api_url"] = api_url
+        cfg_base = PROVIDER_CONFIG.get(provider)
+        if not cfg_base:
+            raise ValueError(f"不支持的供应商: {provider}")
+        env_prefix = cfg_base["env_prefix"]
+        final_url = api_url or os.getenv(f"{env_prefix}_API_URL") or cfg_base["default_url"]
+        final_model = model or os.getenv(f"{env_prefix}_API_MODEL") or cfg_base["default_model"]
+        # 构建 headers
+        headers = {"Content-Type": "application/json"}
+        use_bearer = True
+        for k, v in cfg_base.get("headers_extra", {}).items():
+            headers[k] = v.replace("${API_KEY}", api_key)
+            if k.lower() in ("authorization", "x-api-key"):
+                use_bearer = False
+        if use_bearer and "Authorization" not in headers:
+            headers["Authorization"] = f"Bearer {api_key}"
+        cfg = {
+            "api_key": api_key,
+            "api_url": final_url,
+            "model": final_model,
+            "headers": headers,
+        }
+    else:
+        # llmBridge 应该在调用前就确保传入了 api_key，这里不负责查找
+        raise ValueError("stream_chat 需要 api_key 参数，但未收到")
         
     api_url = cfg["api_url"]
     headers = cfg["headers"]
@@ -192,7 +214,6 @@ def stream_chat(
     if provider == "spark":
         raise NotImplementedError("讯飞星火暂不支持自动流式调用")
 
-    # 发送请求
     # 发送请求
     try:
         resp = requests.post(
