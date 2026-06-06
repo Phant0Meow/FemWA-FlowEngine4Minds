@@ -159,7 +159,7 @@ mainflow:
 
 
 ## 本人真实案例
-- 写代码debug的时候，我用 femwa.net 的前端 20 分钟搭出的fem剧本 “debug神器.fems”，找复杂隐蔽 bug 超好用。
+- 写代码debug的时候，我用 femwa.net 的前端 20 分钟搭出的fem剧本 “super_debug.fems”，找复杂隐蔽 bug 超好用。
 - 有一次网页版 Claude Sonnet 改了三遍都没找到的 bug，用这个fem剧本 + 不开思考的小米 MiMo 给我找出来了……我都惊呆了。这就是harness的力量吗……
 - 然后我突然一拍脑袋想到，在AI跑流程的时候我想随时插话，免得他们跑偏，就用半分钟时间加了一个人类发言节点，接着一键跑通。改流程真是太方便了。
 
@@ -168,7 +168,7 @@ mainflow:
 - 欢迎提交 Issue！有bug欢迎提～
 - 欢迎 Pull Request！
 - 欢迎提交你写的fems剧本！这个也是很好的贡献～
-  (我就把自用的 debug神器.fems 放文件夹里当示例了哈哈哈。欢迎你们也试试～不过这个剧本建议只用来找复杂隐蔽的 bug 哦，不然我心疼你的 Token，两处并发和多轮讨论挺消耗TOKEN的。简单bug大概更适配别的剧本流程，欢迎你们分享！)
+  (我就把自用的debug剧本放文件夹里当示例了哈哈哈。欢迎你们也试试～不过这个剧本建议只用来找复杂隐蔽的 bug 哦，不然我心疼你的 Token，两处并发和多轮讨论挺消耗TOKEN的。简单bug大概更适配别的剧本流程，欢迎你们分享！)
 
 
 ## one more thing...
@@ -356,7 +356,7 @@ mainflow:
 
 
 ## My Real-World Case
-- While debugging code, I used the femwa.net frontend to build a Fem script debug神器.fems in about 20 minutes. It's amazing at finding complex, hidden bugs.
+- While debugging code, I used the femwa.net frontend to build a Fem script called super_debug.fems in about 20 minutes. It's amazing at finding complex, hidden bugs.
 - Once, the web version of Claude Sonnet failed to fix a bug after three attempts. I ran this Fem script + Xiaomi MiMo (without thinking mode) and it found the bug... I was stunned. Is this the power of a harness...?
 - Then it hit me — I wanted to jump in and intervene while the AI was running, to stop them going off track. I spent half a minute adding a Human speech node, then ran it again with one click. Changing the flow is just so convenient.
 
@@ -366,7 +366,7 @@ mainflow:
 - Issues welcome! If you find a bug, let me know~
 - Pull Requests welcome!
 - Submit your own `.fems` scripts! That's a great contribution too~
-  (I just put my personal `debug神器.fems` in the folder as an example haha. Feel free to try it~ But I'd recommend this script only for tricky, hidden bugs; otherwise I’ll worry about your Tokens — the two concurrent loops and multiple discussion rounds use a lot of tokens. Simple bugs probably suit other script flows better. Share yours!)
+  (I just put my personal `super_debug.fems` in the folder as an example haha. Feel free to try it~ But I'd recommend this script only for tricky, hidden bugs; otherwise I’ll worry about your Tokens — the two concurrent loops and multiple discussion rounds use a lot of tokens. Simple bugs probably suit other script flows better. Share yours!)
 
 
 
