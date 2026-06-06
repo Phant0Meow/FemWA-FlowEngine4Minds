@@ -90,9 +90,9 @@ Fem有网页端零代码生成工作流。比如你想要好几个AI群聊，网
 ## 【快速开始！】 
 所以这个操作步骤够不够无脑？↓↓↓
 
-1. 下载本项目: pip install git+https://github.com/Phant0Meow/FemWA.git
-2. 运行后端: fem --server 
-3. 输入端口，比如8000。
+1. 下载本项目: pip install femwa
+2. 运行后端: femwa --server
+3. 输入端口，比如7788。直接回车也行，用默认8000。
 4. 进入我们的网站[femwa.net](https://femwa.net) 
 5. 页面右下角: 设置后端地址，端口输入8000，按“测试连接”，确认前后端连接成功，按“保存并连接”。
 6. 右下角输入API key. （后端在你本地，API Key 只传给自己的后端。不放心的话，看根目录环境变量模板，Key 完全不走前端）。
@@ -284,9 +284,13 @@ Aha! How about using Fem to quickly validate your Agent Harness flow designs? Wh
 ## [ Quick Start! ]
 Is this brain-dead simple enough? ↓↓↓
 
-1. Clone the project: pip install git+https://github.com/Phant0Meow/FemWA.git
-2. Start the backend: `fem --server`
-3. Enter a port, e.g., `8000`.
+1. 下载本项目: pip install femwa
+2. 运行后端: femwa --server
+3. 输入端口，比如7788。直接回车也行，用默认8000。
+
+1. Clone the project: pip install femwa
+2. Start the backend: `femwa --server`
+3. Enter a port, e.g., `7788`. Or just press Enter.
 4. Go to [https://femwa.net](https://femwa.net)
 5. Bottom right corner: set backend address, port `8000`, click "Test Connection", confirm the frontend and backend are connected, then click "Save & Connect".
 6. Enter your API key in the bottom right.
