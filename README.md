@@ -92,10 +92,13 @@ Fem有网页端零代码生成工作流。比如你想要好几个AI群聊，网
 
 1. 下载本项目: pip install femwa
 2. 运行后端: femwa --server
-3. 输入端口，比如7788。直接回车也行，用默认8000。
+3. 直接回车，用默认端口8000。
 4. 进入我们的网站[femwa.net](https://femwa.net) 
-5. 页面右下角: 设置后端地址，端口输入8000，按“测试连接”，确认前后端连接成功，按“保存并连接”。
-6. 右下角输入API key. （后端在你本地，API Key 只传给自己的后端。不放心的话，看根目录环境变量模板，Key 完全不走前端）。
+5. 点页面左下角↙↙【连接后端】按钮，按【测试连接】，确认前后端连接成功，按【保存并连接】。
+6. 左下角输入API key. 
+   - 你可以去申请一个临时API key来测试这个项目，相信我，它值得，可好玩了。
+   - 后端在你本地，API Key 只传给你自己的后端，是安全的。
+   - 或者你可以去看根目录环境变量模板，按那个操作，Key 完全不走前端。
 7. 把这个fem代码复制到右侧Fem预览框。
    
 ```fems
@@ -164,8 +167,8 @@ mainflow:
 - 然后我突然一拍脑袋想到，在AI跑流程的时候我想随时插话，免得他们跑偏，就用半分钟时间加了一个人类发言节点，接着一键跑通。改流程真是太方便了。
 
 
-## 项目尚在早期，欢迎试用、反馈问题、贡献代码！
-- 欢迎提交 Issue！有bug请告诉我～肯定有的，毕竟这才是第一个版本。
+## 欢迎试用、反馈问题、贡献代码！
+- 欢迎提交 Issue！有bug欢迎提～
 - 欢迎 Pull Request！
 - 欢迎提交你写的fems剧本！这个也是很好的贡献～
   (我就把自用的debug剧本放文件夹里当示例了哈哈哈。欢迎你们也试试～不过这个剧本建议只用来找复杂隐蔽的 bug 哦，不然我心疼你的 Token，两处并发和多轮讨论挺消耗TOKEN的。简单bug大概更适配别的剧本流程，欢迎你们分享！)
@@ -284,17 +287,16 @@ Aha! How about using Fem to quickly validate your Agent Harness flow designs? Wh
 ## [ Quick Start! ]
 Is this brain-dead simple enough? ↓↓↓
 
-1. 下载本项目: pip install femwa
-2. 运行后端: femwa --server
-3. 输入端口，比如7788。直接回车也行，用默认8000。
-
 1. Clone the project: pip install femwa
 2. Start the backend: `femwa --server`
-3. Enter a port, e.g., `7788`. Or just press Enter.
+3. just press Enter, use the default port 8000.
 4. Go to [https://femwa.net](https://femwa.net)
-5. Bottom right corner: set backend address, port `8000`, click "Test Connection", confirm the frontend and backend are connected, then click "Save & Connect".
-6. Enter your API key in the bottom right.
-   (The backend runs on your machine, the API key is only sent to your own backend. If you're worried, check the environment variable template in the project root — your key never touches the frontend at all.)
+5. Click the 【连接后端】 button in the bottom-left corner ↙↙, click 【测试连接】, confirm the frontend and backend are connected successfully, then click 【保存并连接】.
+6. Enter your API key in the bottom-left corner.
+   - You can go grab a temporary API key to test this project. Trust me, it's worth it — really fun to play with.
+   - The backend runs on your local machine, and your API key is only sent to your own backend — it's safe.
+   - Or check the environment variable template in the project root directory and follow those instructions — your key won't touch the frontend at all.
+
 7. Copy this Fem code into the preview box on the right.
 
 ```fems
@@ -366,8 +368,8 @@ mainflow:
 
 
 
-## Early Stage - Contribution and Discussion Welcome!
-- Issues welcome! If there are any bugs, please let me know - there must be some, after all, this is the first version.
+## Try it, Report Issues, Contribute!
+- Issues welcome! If you find a bug, let me know~
 - Pull Requests welcome!
 - Submit your own `.fems` scripts! That's a great contribution too~
   (I just put my personal `super_debug.fems` in the folder as an example haha. Feel free to try it~ But I'd recommend this script only for tricky, hidden bugs; otherwise I’ll worry about your Tokens — the two concurrent loops and multiple discussion rounds use a lot of tokens. Simple bugs probably suit other script flows better. Share yours!)
