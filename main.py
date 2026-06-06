@@ -1,11 +1,11 @@
-# FemWA的主入口 main.py
+# femCompiler.py
 """
 FEM Work Automata - FastAPI 服务器
 提供前后端通信接口，支持 SSE 流式事件推送
 
 用法：
-  服务器模式：python main.py --server
-  CLI 模式：  python main.py <script.fems>
+  服务器模式：python3 femCompiler.py --server
+  CLI 模式： python3 femCompiler.py <script.fems>
   
 代码原则：所有代码不许写try静默兜底不报错，有错必须报错。
 """
@@ -329,10 +329,10 @@ def cli_main(fems_file: str):
 
 
 # ══════════════════════════════════════════════════
-#  入口
+#  入口函数（供命令行入口 “femwa” 调用）
 # ══════════════════════════════════════════════════
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="FEM Work Automata")
     parser.add_argument("script", nargs="?", help=".fems 文件路径（CLI 模式）")
     parser.add_argument("--server", action="store_true", help="启动 FastAPI 服务器")
@@ -341,7 +341,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.server:
-        prepare_database()                    # ← 新增：启动服务器前确保数据库就绪
+        prepare_database()
 
         import uvicorn
 
@@ -368,7 +368,11 @@ if __name__ == "__main__":
         print()
         uvicorn.run(app, host=args.host, port=port)
     elif args.script:
-        prepare_database()                    # ← 新增：CLI 模式下也确保数据库就绪
+        prepare_database()
         cli_main(args.script)
     else:
         parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
