@@ -1,7 +1,7 @@
-[![License: Apache2.0](https://img.shields.io/badge/License-Apache2.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.6+](https://img.shields.io/badge/Python-3.6%2B-blue.svg)](https://www.python.org/)
-[![Live Demo](https://img.shields.io/badge/Frontend-Script%20Generator-green.svg)](https://femwa.net)
-[![网页版介绍](https://img.shields.io/badge/FemWA-网页介绍-c8a84b?style=flat-square&logo=firefox)](https://femwa.net/intro)
+[![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/Python-3.6%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
+[![生成器](https://img.shields.io/badge/FemWA-剧本生成器-green?style=flat-square&logo=github)](https://femwa.net)
+[![介绍](https://img.shields.io/badge/FemWA-网页介绍-c8a84b?style=flat-square&logo=firefox)](https://femwa.net/intro)
 [![文档](https://img.shields.io/badge/FemWA-完整文档-79b8d4?style=flat-square&logo=readthedocs)](https://femwa.net/document)
 
 # FlowEngineforMinds（FemWA） —— 用写剧本的方式编排多智能体世界
