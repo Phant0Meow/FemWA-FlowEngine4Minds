@@ -7,36 +7,18 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="femwa",
-    version="1.1.0",
-    author="Junyue (求职大模型方向，求内推 QAQ)",
-    author_email="jovielher@163.com",
-    description="FlowEngineforMinds - 用写剧本的方式编排多智能体世界",
+    # ── 以下信息从 pyproject.toml 自动读取，无需重复写 ──
+    # name, version, author, description, license, python_requires, install_requires, classifiers, url 全部省略
+
+    # ── 以下为构建相关，必须保留 ──
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/Phant0Meow/FlowEngineforMinds-WorldAutomata",
-    license="Apache-2.0",
-    packages=find_packages(),  # 自动找到 femCompiler, femBridges 等
-    py_modules=["main"],       # 根目录下的 main.py
-    python_requires=">=3.10",
-    install_requires=[
-        "fastapi>=0.100.0",
-        "uvicorn>=0.23.0",
-        "requests>=2.31.0",
-    ],
+    packages=find_packages(),
+    py_modules=["main"],
     entry_points={
         "console_scripts": [
-            "fem = main:main",
+            "femwa = main:main",
         ],
     },
-    classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-        "Operating System :: OS Independent",
-    ],
     include_package_data=True,
 )
