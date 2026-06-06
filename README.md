@@ -140,6 +140,8 @@ mainflow:
 8. 按页面上方“运行”。
 9. 然后你就可以和Eve以及小猫咪聊天了！
 
+<img width="2560" height="1426" alt="image" src="https://github.com/user-attachments/assets/dfef4d1f-8c8a-4b2b-9eb6-6ac83997ff86" />
+
 
 ## 设计哲学
 - 🔗 **流程解耦**：FemWA 把「流程定义」和「代码实现」彻底解耦。Harness 是死的，FEM 是活的——改流程只需要改剧本，其他交给编译器。
