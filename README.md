@@ -166,7 +166,8 @@ mainflow:
 - 写代码debug的时候，我用 femwa.net 的前端 20 分钟搭出的fem剧本 “super_debug.fems”，找复杂隐蔽 bug 超好用。
 - 有一次网页版 Claude Sonnet 改了三遍都没找到的 bug，用这个fem剧本 + 不开思考的小米 MiMo 给我找出来了……我都惊呆了。这就是harness的力量吗……
 - 然后我突然一拍脑袋想到，在AI跑流程的时候我想随时插话，免得他们跑偏，就用半分钟时间加了一个人类发言节点，接着一键跑通。改流程真是太方便了。
-
+<img width="1376" height="914" alt="42a91a7174f74a48784262606cba05cd" src="https://github.com/user-attachments/assets/970bde13-de50-4a38-ab57-ee6d27581ab2" />
+（是这么个流程。红圈圈出来的就是我 5 秒加的随时插话……事实上半分钟说多了，真用不了十秒钟。）
 
 ## 欢迎试用、反馈问题、贡献代码！
 - 欢迎提交 Issue！有bug欢迎提～肯定有 bug 的，这才第一版。
