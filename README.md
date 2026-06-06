@@ -35,7 +35,10 @@ Agent 工作流改一次，要翻 5 个文件、调 2 小时、祈祷别崩。
 视角分离只需要一行“scope: [@上帝] + 狼队”，并发投票只需要一行“par @player in allplayers:”。
 
 
-# 这是一种编排多Agent剧本的语言 + 一个编译器。**
+# 这是一种编排多Agent剧本的语言 + 一个编译器。
+
+网页版介绍：[femwa.net/intro](https://femwa.net/intro)
+网页版文档：[femwa.net/document](https://femwa.net/document)
 
 
 ## 你为什么选择FemWA？
