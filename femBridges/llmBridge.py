@@ -112,8 +112,7 @@ def call_ai_with_blocks(
         {"role": "user", "content": user_prompt},
     ]
 
-    # ── 2. 确定 API 密钥与提供者 ──
-    # 如果用户指定了 provider，用指定的；否则自动检测 .env 中第一个可用的
+    # ── 2. 确定 API 密钥、模型与提供者（优先级：前端 > 环境变量 > 报错）──
     if user_api_provider and user_api_provider in PROVIDER_LIST:
         provider = user_api_provider
     else:
@@ -122,11 +121,43 @@ def call_ai_with_blocks(
             print("[llmBridge] ❌ 未检测到任何 API Key，请设置 .env 文件或在浏览器中填写")
             return None
 
-    # 是否使用浏览器传入的 Key / URL（两者都可选）
+    env_prefix = PROVIDER_LIST[provider]['env_prefix']
+
+    # API Key
     if user_api_key:
+        final_api_key = user_api_key
         print(f"[llmBridge] 🌐 使用浏览器传入的 API Key (provider={provider})")
     else:
-        print(f"[llmBridge] 🏠 使用本地 .env 中的 {PROVIDER_LIST[provider]['env_prefix']}_API_KEY")
+        final_api_key = os.getenv(f"{env_prefix}_API_KEY")
+        if final_api_key:
+            print(f"[llmBridge] 🏠 使用本地 .env 中的 {env_prefix}_API_KEY")
+        else:
+            print(f"[llmBridge] ❌ 缺少 API Key: 未传入且环境变量 {env_prefix}_API_KEY 不存在")
+            return None
+
+    # Model
+    if model and model != "default":
+        final_model = model
+        print(f"[llmBridge] 🌐 使用浏览器传入的模型: {final_model}")
+    else:
+        final_model = os.getenv(f"{env_prefix}_API_MODEL")
+        if final_model:
+            print(f"[llmBridge] 🏠 使用环境变量中的模型: {final_model}")
+        else:
+            print(f"[llmBridge] ❌ 缺少模型名: 未传入且环境变量 {env_prefix}_API_MODEL 不存在")
+            return None
+
+    # API URL
+    if user_api_url:
+        final_api_url = user_api_url
+        print(f"[llmBridge] 🌐 使用浏览器传入的 API URL: {final_api_url}")
+    else:
+        final_api_url = os.getenv(f"{env_prefix}_API_URL")
+        if final_api_url:
+            print(f"[llmBridge] 🏠 使用环境变量中的 API URL: {final_api_url}")
+        else:
+            print(f"[llmBridge] ❌ 缺少 API URL: 未传入且环境变量 {env_prefix}_API_URL 不存在")
+            return None
 
     # ── 3. 调用统一流式生成器 ──
     try:
@@ -134,11 +165,12 @@ def call_ai_with_blocks(
             provider=provider,
             messages=messages,
             system_prompt=system_prompt,
-            deep_think=(model != "default"),   # 保留原逻辑：非 default 则开启深度思考
+            model=final_model,
+            deep_think=(final_model != "default"),
             sampling_params={},
             stop_event=stop_event,
-            api_key=user_api_key,       # 可选，浏览器传入
-            api_url=user_api_url,       # 可选，浏览器传入
+            api_key=final_api_key,
+            api_url=final_api_url,
         )
     except Exception as e:
         print(f"[llmBridge] ❌ 启动流式请求失败: {e}")
