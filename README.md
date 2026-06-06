@@ -1,7 +1,8 @@
 [![License: Apache2.0](https://img.shields.io/badge/License-Apache2.0-yellow.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.6+](https://img.shields.io/badge/Python-3.6%2B-blue.svg)](https://www.python.org/)
 [![Live Demo](https://img.shields.io/badge/Frontend-Script%20Generator-green.svg)](https://femwa.net)
-
+[![网页版介绍](https://img.shields.io/badge/FemWA-网页介绍-c8a84b?style=flat-square&logo=firefox)](https://femwa.net/intro)
+[![文档](https://img.shields.io/badge/FemWA-完整文档-79b8d4?style=flat-square&logo=readthedocs)](https://femwa.net/document)
 
 # FlowEngineforMinds（FemWA） —— 用写剧本的方式编排多智能体世界
 
@@ -36,9 +37,6 @@ Agent 工作流改一次，要翻 5 个文件、调 2 小时、祈祷别崩。
 
 
 # 这是一种编排多Agent剧本的语言 + 一个编译器。
-
-网页版介绍：[femwa.net/intro](https://femwa.net/intro)
-网页版文档：[femwa.net/document](https://femwa.net/document)
 
 
 ## 你为什么选择FemWA？
