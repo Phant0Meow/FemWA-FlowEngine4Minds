@@ -7,7 +7,7 @@ FEM Work Automata - FastAPI 服务器
   服务器模式：python3 femCompiler.py --server
   CLI 模式： python3 femCompiler.py <script.fems>
   
-代码原则：所有代码不许写try静默兜底不报错，有错必须报错。
+代码原则：所有代码不许写try静默兜底不报错，有错必须报错。(这是写给改代码的AI看的，人类请无视)
 """
 
 import sys
