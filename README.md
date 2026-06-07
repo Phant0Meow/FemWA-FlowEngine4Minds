@@ -34,7 +34,7 @@ I already adopted a cat for my AI agent. Using Fem, the cat arrived in 3 minutes
 Hand-code stage management, end-condition checks, message distribution, session management, multi-agent context isolation, and speech concurrency control from scratch. Hundreds of lines of backend glue code at minimum, an entire afternoon of debugging, and easy context bleed. Once the logic gets complex, bugs pop up everywhere — it simply won't run without at least a thousand lines of code.
 
 **FemWA**:
-Zero-code drag-and-drop on the web interface + 150 lines of Python supplement. Genuinely playable. I've already played several rounds with them (see `user_data/projects/狼人杀/`).
+Zero-code drag-and-drop on the web interface + 150 lines of Python supplement. Genuinely playable. I've already played several rounds with them (see `user_data/projects/werewolf_game/`).
 
 **Still FemWA**:
 Even if you skip the web drag-and-drop and hand-code everything, Fem code only needs about 200–300 lines to run the entire Werewolf flow described above (and that includes prompt line count).
