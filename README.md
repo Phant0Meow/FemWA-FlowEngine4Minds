@@ -1,3 +1,5 @@
+中文 README 可往后翻。
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.6%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
 [![Generator](https://img.shields.io/badge/FemWA-Script%20Generator-green?style=flat-square&logo=github)](https://femwa.net)
