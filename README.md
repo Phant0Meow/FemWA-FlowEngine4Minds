@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/badge/Python-3.6%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
 [![Generator](https://img.shields.io/badge/FemWA-Script%20Generator-green?style=flat-square&logo=github)](https://femwa.net)
 [![Intro](https://img.shields.io/badge/FemWA-Web%20Intro-c8a84b?style=flat-square&logo=firefox)](https://femwa.net/intro)
-[![Docs](https://img.shields.io/badge/FemWA-Full%20Documentation-79b8d4?style=flat-square&logo=readthedocs)](https://femwa.net/document)
+[![Docs](https://img.shields.io/badge/FemWA-Full%20Documentation-79b8d4?style=flat-square&logo=readthedocs)](https://femwa.net/document_en)
 
 # FlowEngineforMinds (FemWA) — Orchestrating a Multi-Agent World, Scriptwriting Style
 
