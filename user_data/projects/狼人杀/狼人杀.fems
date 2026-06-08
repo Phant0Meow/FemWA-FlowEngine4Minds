@@ -21,10 +21,10 @@ code:
   werewolf_utils = file:"werewolf_utils.py"
 
 vars:
-  roles = {@Eve: "狼人", @Nova猫: "狼人", @AI助手: "预言家", @Portia: "女巫", @人: "村民", @小机: "村民"}
-  alive = [@Eve, @Nova猫, @AI助手, @Portia, @人, @小机]
-  all = [@Eve, @Nova猫, @AI助手, @Portia, @人, @小机, @小灵]
-  allai = [@Eve, @Nova猫, @AI助手, @Portia, @小机, @小灵]
+  roles = {@Eve: "狼人", @小猫咪: "狼人", @AI助手: "预言家", @Portia: "女巫", @人: "村民", @小机: "村民"}
+  alive = [@Eve, @小猫咪, @AI助手, @Portia, @人, @小机]
+  all = [@Eve, @小猫咪, @AI助手, @Portia, @人, @小机, @小灵]
+  allai = [@Eve, @小猫咪, @AI助手, @Portia, @小机, @小灵]
   wolves = []
   witch_has_antidote = true
   witch_has_poison = true
@@ -177,15 +177,11 @@ module DayPhase:
     scope: all
 
   action ai_speak @ai(@speaker):
-    prompt: |
-      轮到你发言。你是{@speaker}，你的身份是{@speaker.roles}。目前场上存活玩家：{alive}。昨晚 {announcement}
-      请分享你的想法和怀疑对象。
+    prompt: 轮到你发言。你是{@speaker}，你的身份是{@speaker.roles}。目前场上存活玩家：{alive}。昨晚 {announcement}。请分享你的想法和怀疑对象。
     scope: all
 
   action human_speak @human(@speaker):
-    prompt: |
-      轮到你发言。存活玩家：{alive}。昨晚 {announcement}
-      请输入你的发言：
+    prompt: 轮到你发言。存活玩家：{alive}。昨晚 {announcement}
     scope: all
 
   action ai_vote @ai(@voter):
@@ -197,8 +193,7 @@ module DayPhase:
       @VOTE(string, "投票目标")
 
   action human_vote @human(@voter):
-    prompt: |
-      现在是白天，投票时间。存活玩家：{alive}。请选择你要投票放逐的玩家：
+    prompt: 现在是白天，投票时间。存活玩家：{alive}。请选择你要投票放逐的玩家：
     scope: [@上帝, @voter]
     out:
       @VOTE(string, "投票目标")
@@ -264,8 +259,7 @@ module chat:
     @player = ""
 
   action chat_ai @ai(@player):
-    prompt: |
-      游戏结束啦，随便聊聊吧～
+    prompt: 游戏结束啦，随便聊聊吧～
     scope: all
 
   action chat_human @human(@人):
@@ -290,11 +284,8 @@ mainflow:
   [day]: &DayPhase
   [chat]: &chat
 
-  [START] -> [roleCard] -> [game_loop] -> [day]
-  [day] -> fork:
-    -> if (game_over == false) -> [game_loop]
-    -> if (game_over == true) -> [chat]
-  [chat] -> [END]
+  [START] -> [roleCard] -> [game_loop] -> [day] -> if (game_over == false) -> [game_loop]
+  [day] -> if (game_over == true) -> [chat] -> [END]
 
 sketch:
   [END] = 727, 410
