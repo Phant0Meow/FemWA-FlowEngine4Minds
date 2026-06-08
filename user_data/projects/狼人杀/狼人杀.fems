@@ -18,7 +18,7 @@ actors:
   ai @AI助手 = soul:AI助手
 
 code:
-  werewolf_utils = file:"user_data/projects/狼人杀/werewolf_utils.py"
+  werewolf_utils = file:"werewolf_utils.py"
 
 vars:
   roles = {@Eve: "狼人", @Nova猫: "狼人", @AI助手: "预言家", @Portia: "女巫", @人: "村民", @小机: "村民"}
