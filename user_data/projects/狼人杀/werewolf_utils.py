@@ -126,7 +126,7 @@ def process_votes_and_end(votes, alive_players, roles_dict):
     }
 
 def assign_roles():
-    players = ["@Eve", "@Nova猫", "@DeepSeek", "@Roxie", "@人", "@小机"]
+    players = ["@Eve", "@小猫咪", "@小灵", "@Portia", "@人", "@小机"]
     # 强制 @人 为村民，从角色池中移除一个村民
     fixed_role_player = "@人"
     # 其他玩家
