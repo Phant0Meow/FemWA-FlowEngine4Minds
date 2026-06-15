@@ -51,14 +51,16 @@ class FEMConcurrencyError(FEMException):
         
 
 class ExecutionContext:
-    """进入模块时创建，退出时销毁。contextvars 保证多线程/协程自动隔离。"""
-    def __init__(self, module_name: str, module_max_steps: int = 0):
+    """进入模块时创建，退出时销毁。contextvars 保证多线程/协程自动隔离。
+       支持从母上下文继承局部变量（浅拷贝）。"""
+    def __init__(self, module_name: str, module_max_steps: int = 0, mother: 'ExecutionContext' = None):
         self.module_name = module_name
-        self.locals: Dict[str, Any] = {}
+        # 继承母上下文的局部变量
+        self.locals: Dict[str, Any] = dict(mother.locals) if mother else {}
         self.module_step = 0
         self.module_max_steps = module_max_steps
-        self.current_loop_var: Optional[str] = None   # ← 新增
-        self.current_node_id: str = ""                # 当前执行的节点 ID
+        self.current_loop_var: Optional[str] = mother.current_loop_var if mother else None
+        self.current_node_id: str = mother.current_node_id if mother else ""
 
     def __enter__(self):
         self._token = _current_context.set(self)
@@ -90,19 +92,17 @@ class VarManager:
         return name in self.globals
 
     def get(self, path: str) -> Any:
-        """获取变量值，支持 x, x.y, x[k] 形式，先查 local 再查 global"""
+        """获取变量值。以 $ 开头的变量强制从全局读取，否则先局部后全局。"""
         if not path:
             return None
         tokens = self._tokenize(path)
         if tokens:
             root = tokens[0][0]
             if not self._has(root):
-                # 如果 root 以 @ 开头，尝试查找演员
                 if root.startswith('@') and hasattr(self, '_actors'):
                     actor = self._actors.get(root)
                     if actor:
                         return root
-                # 不是演员，报错
                 import traceback
                 traceback.print_stack()
                 raise FEMVariableError(
@@ -111,7 +111,7 @@ class VarManager:
         return self._resolve(path, create=False)
 
     def set(self, path: str, value: Any, local: bool = False):
-        """设置变量值，先查 local 再查 global。local=True 强制写入当前模块 local"""
+        """设置变量值。以 $ 开头的变量强制写入全局，否则写入当前任务局部。"""
         tokens = self._tokenize(path)
         if not tokens:
             return
@@ -122,20 +122,23 @@ class VarManager:
             raise FEMVariableError(
                 f"变量 '{first}' 未声明，无法赋值。请在 vars: 中声明该变量。"
             )
-        # 判断是否涉及字典键写入，需要加锁
+        is_global = first.startswith('$')
         need_lock = len(tokens) > 1 or ('[' in path)
         lock = threading.Lock() if need_lock else None
         if lock:
             lock.acquire()
         try:
             if len(tokens) == 1:
-                ctx = _current_context.get()
-                if local and ctx:
-                    ctx.locals[first] = value
-                elif ctx and first in ctx.locals:
-                    ctx.locals[first] = value
-                else:
+                if is_global:
                     self.globals[first] = value
+                else:
+                    ctx = _current_context.get()
+                    if ctx and first in ctx.locals:
+                        ctx.locals[first] = value
+                    elif ctx and first in self.globals:
+                        ctx.locals[first] = value
+                    else:
+                        self.globals[first] = value
                 return value
             else:
                 return self._resolve(path, create=False, set_value=value)
@@ -161,25 +164,33 @@ class VarManager:
         return self.globals, name
 
     def _resolve(self, path: str, create: bool = False, set_value=...) -> Any:
-        """解析路径并取/设值，上下文感知"""
+        """解析路径并取/设值，上下文感知。$ 前缀变量强制走全局。"""
         tokens = self._tokenize(path)
         if not tokens:
             return None
 
         first = tokens[0][0]
+        is_global = first.startswith('$')
+
         if set_value is not ... and len(tokens) == 1:
-            ctx = _current_context.get()
-            if ctx and first in ctx.locals:
-                ctx.locals[first] = set_value
-            else:
+            if is_global:
                 self.globals[first] = set_value
+            else:
+                ctx = _current_context.get()
+                if ctx and first in ctx.locals:
+                    ctx.locals[first] = set_value
+                elif ctx and first in self.globals:
+                    ctx.locals[first] = set_value
+                else:
+                    self.globals[first] = set_value
             return set_value
 
+        # 读取起点
         ctx = _current_context.get()
-        if ctx and first in ctx.locals:
-            obj = ctx.locals[first]
-        else:
+        if is_global or not ctx or first not in ctx.locals:
             obj = self.globals.get(first)
+        else:
+            obj = ctx.locals.get(first)
 
         if obj is None and create:
             self.globals[first] = {}
@@ -191,7 +202,6 @@ class VarManager:
 
             if is_attr:
                 if key.startswith('@'):
-                    # @ 开头的键一律视为字典键
                     if not isinstance(obj, dict):
                         raise FEMVariableError(f"无法通过 '@{key}' 访问非字典对象: {type(obj)}")
                     if is_last and set_value is not ...:
@@ -895,9 +905,16 @@ class FEMRunner:
             if join_mode == 'all':
                 # 允许单个分支失败，不取消其他分支
                 results = await asyncio.gather(*tasks, return_exceptions=True)
+                last_locals = None
                 for idx, result in enumerate(results):
                     if isinstance(result, Exception):
                         print(f"[JOIN] 分支 {idx} 异常（继续执行其他分支）: {result}")
+                    elif isinstance(result, dict):
+                        last_locals = result
+                if last_locals:
+                    current_ctx = _current_context.get()
+                    if current_ctx:
+                        current_ctx.locals.update(last_locals)
             elif join_mode == 'any':
                 await self.engine.gather_with_cancel(tasks, return_when='any')
             elif join_mode == 'n':
@@ -905,9 +922,16 @@ class FEMRunner:
             else:
                 # 允许单个分支失败，不取消其他分支
                 results = await asyncio.gather(*tasks, return_exceptions=True)
+                last_locals = None
                 for idx, result in enumerate(results):
                     if isinstance(result, Exception):
                         print(f"[JOIN] 分支 {idx} 异常（继续执行其他分支）: {result}")
+                    elif isinstance(result, dict):
+                        last_locals = result
+                if last_locals:
+                    current_ctx = _current_context.get()
+                    if current_ctx:
+                        current_ctx.locals.update(last_locals)
             print(f"[JOIN]   等待完成")
         else:
             print(f"[JOIN]   无待处理任务，直接通过")
@@ -1457,7 +1481,7 @@ class FEMRunner:
         for target, cond in branch_entries:
             async def branch_runner(start_node=target):
                 print(f"[FORK]      分支协程启动，目标节点: {start_node}")
-                ctx = ExecutionContext(f"{gateway_id}_{start_node}")
+                ctx = ExecutionContext(f"{gateway_id}_{start_node}", mother=_current_context.get())
                 token = _current_context.set(ctx)
                 try:
                     await self._execute_path(flow, start_node,
@@ -1471,6 +1495,7 @@ class FEMRunner:
                     print(f"[FORK]      分支异常: {e}")
                 finally:
                     _current_context.reset(token)
+                    return ctx.locals
 
             task = self.engine.create_task(branch_runner())
             tasks.append(task)
@@ -1479,10 +1504,17 @@ class FEMRunner:
         # fork 直接等待所有分支完成，不连接任何 join
         print("[FORK]   等待所有分支完成（不连接 join）")
         # 允许单个分支失败，不取消其他分支
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for idx, result in enumerate(results):
+        branch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        last_locals = None
+        for idx, result in enumerate(branch_results):
             if isinstance(result, Exception):
                 print(f"[FORK] 分支 {idx} 异常（继续执行其他分支）: {result}")
+            elif isinstance(result, dict):
+                last_locals = result
+        if last_locals:
+            current_ctx = _current_context.get()
+            if current_ctx:
+                current_ctx.locals.update(last_locals)
         return None
         
         
@@ -1577,7 +1609,8 @@ class FEMRunner:
         for item in iterable:
             print(f"[PAR DEBUG] 创建分支 item = {item}")
             async def par_branch(item=item, var_name=var_name):
-                ctx = ExecutionContext(f"par_{fork_id}_{item}")
+                mother_ctx = _current_context.get()
+                ctx = ExecutionContext(f"par_{fork_id}_{item}", mother=mother_ctx)
                 ctx.locals[var_name] = item
                 ctx.current_loop_var = var_name
                 ctx.locals["vote"] = ""
@@ -1607,6 +1640,7 @@ class FEMRunner:
                     pass
                 finally:
                     _current_context.reset(token)
+                    return ctx.locals  # 将本分支的局部变量返回
 
             task = self.engine.create_task(par_branch())
             tasks.append(task)
@@ -1615,10 +1649,18 @@ class FEMRunner:
 
         # 等待所有分支完成（类似 join all）
         # 允许单个分支失败，不取消其他分支
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for idx, result in enumerate(results):
+        branch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        last_locals = None
+        for idx, result in enumerate(branch_results):
             if isinstance(result, Exception):
                 print(f"[PAR] 分支 {idx} 异常（继续执行其他分支）: {result}")
+            elif isinstance(result, dict):
+                last_locals = result  # 最后一个成功的分支 locals
+        # 将最后一个子任务的局部变量合并到当前主上下文
+        if last_locals:
+            current_ctx = _current_context.get()
+            if current_ctx:
+                current_ctx.locals.update(last_locals)
 
         if join_id in self._join_tasks:
             del self._join_tasks[join_id]
