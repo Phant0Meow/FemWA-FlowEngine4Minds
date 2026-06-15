@@ -1087,7 +1087,7 @@ class FEMRunner:
         par 并发执行：为每个迭代生成一个分支，使用 fork + join(all)
         var_name = info.get('var_name', '')
         iterable_expr = info.get('iterable', '')
-        iterable = self.eval_expr(iterable_expr)
+        iterable = self._eval_iterable_expr(iterable_expr)
         if not isinstance(iterable, (list, tuple)):
             return self._follow_next_edge(gateway_id, flow)
 
@@ -1206,7 +1206,7 @@ class FEMRunner:
         iterable_expr = info.get('iterable', '')
         
         # 求值迭代器
-        iterable = self.eval_expr(iterable_expr)
+        iterable = self._eval_iterable_expr(iterable_expr)
         if not isinstance(iterable, (list, tuple)):
             if self.vm.has(iterable_expr):
                 iterable = self.vm.get(iterable_expr)
@@ -1495,7 +1495,7 @@ class FEMRunner:
         var_name = node.meta.get('par_var', '')
         iterable_expr = node.meta.get('par_iterable', '')
         print(f"[DEBUG _run_par_fork] var_name={var_name}, iterable_expr={iterable_expr}")
-        iterable = self.eval_expr(iterable_expr)
+        iterable = self._eval_iterable_expr(iterable_expr)
 
         # ── 调试：查看上下文是否包含上一轮 AI 发言 ──
         try:
@@ -1741,6 +1741,21 @@ class FEMRunner:
             if val is not None: return val
 
         return expr
+
+    def _eval_iterable_expr(self, expr: str) -> Any:
+        """使用 Python eval 安全求值可迭代对象表达式，支持内置函数和变量。"""
+        namespace = {}
+        namespace.update(self._SAFE_BUILTINS)
+        ctx = _current_context.get()
+        if ctx:
+            namespace.update(ctx.locals)
+        namespace.update(self.vm.globals)
+        try:
+            return eval(expr, {"__builtins__": {}}, namespace)
+        except Exception as e:
+            print(f"[runtime] ⚠️ eval 表达式失败 '{expr}': {e}")
+            raise FEMVariableError(f"无法求值表达式: {expr}") from e
+
         
     def _resolve_actor_path(self, path: str) -> Tuple[str, Optional[str]]:
         """
