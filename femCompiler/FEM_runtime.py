@@ -591,13 +591,14 @@ class FEMRunner:
 
     def __init__(self, script, base_dir: str = ".", verbose: bool = True, event_callback=None,
                  user_api_key: str = None, user_api_provider: str = None,
-                 user_api_url: str = None):
+                 user_api_url: str = None, user_api_model: str = None):
         print("[runtime] FEMRunner.__init__ 开始")
         self.script = script
         self.verbose = verbose
         self.user_api_key = user_api_key
         self.user_api_provider = user_api_provider
         self.user_api_url = user_api_url
+        self.user_api_model = user_api_model
         self.vm = VarManager(script.vars)
         self.vm._actors = script.actors   # 让 VarManager 能查到演员
         self.base_dir = base_dir          # ← 新增这行
@@ -611,6 +612,15 @@ class FEMRunner:
         self._event_callback = event_callback  # callable(event_type, data_dict)
         # ── 异步引擎（替代原线程池/事件机制） ──
         self.engine = AsyncEngine()
+        # 解析全局 delay 配置并传给引擎
+        delay = script.meta.get('delay', 0)
+        if isinstance(delay, str):
+            try:
+                delay = float(delay)
+            except (ValueError, TypeError):
+                delay = 0
+        self.engine.llm_delay = delay
+
         self.pause_manager = TaskPauseManager()
         # ── 人类输入等待机制（FastAPI 模式） ──
         self._human_input_event = None
@@ -883,13 +893,21 @@ class FEMRunner:
         if tasks:
             print(f"[JOIN]   开始等待 (mode={join_mode})")
             if join_mode == 'all':
-                await self.engine.gather(*tasks)
+                # 允许单个分支失败，不取消其他分支
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for idx, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        print(f"[JOIN] 分支 {idx} 异常（继续执行其他分支）: {result}")
             elif join_mode == 'any':
                 await self.engine.gather_with_cancel(tasks, return_when='any')
             elif join_mode == 'n':
                 await self.engine.gather_with_cancel(tasks, return_when='n', count=join_count)
             else:
-                await self.engine.gather(*tasks)
+                # 允许单个分支失败，不取消其他分支
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for idx, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        print(f"[JOIN] 分支 {idx} 异常（继续执行其他分支）: {result}")
             print(f"[JOIN]   等待完成")
         else:
             print(f"[JOIN]   无待处理任务，直接通过")
@@ -1114,21 +1132,7 @@ class FEMRunner:
         """执行节点的：绑定的动作 → 绑定的模块 → extra_actions 序列"""
         print(f"[runtime] >>> _execute_node_content: node_id={node_id}, type={getattr(node, 'type', '?')}, is_delay={node.meta.get('is_delay_node', False)}")
 
-        # ── Delay 节点处理：在连续 AI Action 之间等待 ──
-        if node.meta.get('is_delay_node'):
-            delay_s = node.meta.get('delay_seconds', 0)
-            print(f"[runtime] ⏱️ Delay 节点命中: node_id={node_id}, 等待 {delay_s} 秒...")
-            self._emit_event('delay_start', {
-                'node_name': node_id,
-                'delay_seconds': delay_s,
-            })
-            await asyncio.sleep(delay_s)
-            print(f"[runtime] ⏱️ Delay 节点等待完成: node_id={node_id}")
-            self._emit_event('delay_end', {
-                'node_name': node_id,
-                'delay_seconds': delay_s,
-            })
-            return
+
 
         # 记录当前节点 ID 到线程本地的上下文，避免多线程覆盖
         ctx = _current_context.get()
@@ -1474,7 +1478,11 @@ class FEMRunner:
 
         # fork 直接等待所有分支完成，不连接任何 join
         print("[FORK]   等待所有分支完成（不连接 join）")
-        await self.engine.gather(*tasks)
+        # 允许单个分支失败，不取消其他分支
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"[FORK] 分支 {idx} 异常（继续执行其他分支）: {result}")
         return None
         
         
@@ -1521,9 +1529,15 @@ class FEMRunner:
         except Exception as e:
             print(f"[DEBUG par] 上下文调试异常: {e}")
         # ── 调试结束 ──
+        # 兼容 range 对象
+        if isinstance(iterable, range):
+            iterable = list(iterable)
+        print(f"[PAR DEBUG] iterable = {iterable}, len = {len(iterable) if iterable else 0}")
         if not isinstance(iterable, (list, tuple)):
             if self.vm.has(iterable_expr):
                 iterable = self.vm.get(iterable_expr)
+                if isinstance(iterable, range):
+                    iterable = list(iterable)
             if not isinstance(iterable, (list, tuple)):
                 print(f"[runtime]⚠️ par 迭代器 '{iterable_expr}' 不是列表: {iterable}")
                 return self._follow_next_edge(fork_id, flow)
@@ -1561,6 +1575,7 @@ class FEMRunner:
 
         tasks = []
         for item in iterable:
+            print(f"[PAR DEBUG] 创建分支 item = {item}")
             async def par_branch(item=item, var_name=var_name):
                 ctx = ExecutionContext(f"par_{fork_id}_{item}")
                 ctx.locals[var_name] = item
@@ -1599,7 +1614,11 @@ class FEMRunner:
         self._join_tasks[join_id] = tasks
 
         # 等待所有分支完成（类似 join all）
-        await self.engine.gather(*tasks)
+        # 允许单个分支失败，不取消其他分支
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"[PAR] 分支 {idx} 异常（继续执行其他分支）: {result}")
 
         if join_id in self._join_tasks:
             del self._join_tasks[join_id]
@@ -2326,6 +2345,10 @@ class FEMRunner:
         # 创建停止信号并保存引用
         self._llm_stop_event = threading.Event()
 
+        # ★ 按 provider 限流，防止 429
+        provider = self._resolve_ai_source(ad, eparam)
+        await self.engine.throttle_llm(provider)
+
         llm_output = await self.engine.run_in_thread(
             call_ai_with_blocks,
             blocks,
@@ -2334,6 +2357,7 @@ class FEMRunner:
             user_api_key=getattr(self, 'user_api_key', None),
             user_api_provider=getattr(self, 'user_api_provider', None),
             user_api_url=getattr(self, 'user_api_url', None),
+            model=getattr(self, 'user_api_model', None),
         )
         
         #if llm_output:
@@ -3145,6 +3169,39 @@ class FEMRunner:
                     info[var_name] = var_value[actor_name]
         print(f"[DEBUG _get_actor_info] 最终 actor_info = {info}")
         return info
+
+    def _resolve_ai_source(self, action, executor_param: str) -> str:
+        """
+        解析当前 AI 动作实际调用的 API provider 标识。
+        返回 source 字符串，如 "openai"；若无法确定则返回 "unknown"。
+        """
+        # 1. 确定演员名
+        actor_name = executor_param
+        # 支持动态变量 @xxx 解析
+        while actor_name.startswith('@') and actor_name not in self.script.actors:
+            resolved = self.vm.get(actor_name)
+            if not resolved or not isinstance(resolved, str) or not resolved.startswith('@'):
+                break
+            actor_name = resolved
+
+        # 如果仍然不是静态演员，尝试 as_actor
+        if not actor_name or actor_name not in self.script.actors:
+            if hasattr(action, 'as_actor') and action.as_actor:
+                actor_name = action.as_actor
+
+        # 2. 从演员定义中提取 source
+        if actor_name in self.script.actors:
+            actor_def = self.script.actors[actor_name]
+            source = getattr(actor_def, 'source', None)
+            if source:
+                return str(source)
+
+        # 3. 回退：使用用户自设的 API provider
+        if self.user_api_provider:
+            return str(self.user_api_provider)
+
+        # 4. 兜底
+        return "unknown"
 
     # ── 条件表达式安全求值使用的 Python 内置安全命名空间 ──
     _SAFE_BUILTINS = {
