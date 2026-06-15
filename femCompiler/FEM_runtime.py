@@ -1527,11 +1527,20 @@ class FEMRunner:
         var_name = node.meta.get('par_var', '')
         iterable_expr = node.meta.get('par_iterable', '')
         print(f"[DEBUG _run_par_fork] var_name={var_name}, iterable_expr={iterable_expr}")
+
+
+        print(f"[DEBUG PAR] === 即将求值 iterable_expr: {iterable_expr!r}")
+        ctx = _current_context.get()
+        print(f"[DEBUG PAR] 当前上下文: {ctx}")
+        if ctx:
+            print(f"[DEBUG PAR] 当前 ctx.locals: {ctx.locals}")
+            print(f"[DEBUG PAR] ctx.locals.get('parn') = {ctx.locals.get('parn')}")
+        print(f"[DEBUG PAR] vm.globals.get('parn') = {self.vm.globals.get('parn')}")
         iterable = self._eval_iterable_expr(iterable_expr)
+        print(f"[DEBUG PAR] 求值结果 iterable = {iterable!r}, len = {len(iterable) if iterable else 0}")
 
         # ── 调试：查看上下文是否包含上一轮 AI 发言 ──
         try:
-            from bridges.ContextExample import get_session_context
 
             cat_actor = self.script.actors.get('@Cat')
             olivia_actor = self.script.actors.get('@Olivia')
@@ -1785,15 +1794,27 @@ class FEMRunner:
         return expr
 
     def _eval_iterable_expr(self, expr: str) -> Any:
-        """使用 Python eval 安全求值可迭代对象表达式，支持内置函数和变量。"""
-        namespace = {}
-        namespace.update(self._SAFE_BUILTINS)
-        ctx = _current_context.get()
-        if ctx:
-            namespace.update(ctx.locals)
-        namespace.update(self.vm.globals)
+        """使用 Python eval 求值，FEM 变量优先，其余全部交给 Python 内置。"""
+        import builtins
+        from collections import ChainMap
+
+        # 一层薄薄的映射：只负责按 FEM 作用域规则提供变量值
+        class FEMVarMap:
+            def __getitem__(self, key):
+                try:
+                    return self.vm.get(key)   # 先局部后全局
+                except FEMVariableError:
+                    # 让 Python 的查找机制知道“这里没有这个变量”，从而自动去下一层找
+                    raise KeyError(key)
+            def __contains__(self, key):
+                return self.vm.has(key)
+
+        fem_vars = FEMVarMap()
+        fem_vars.vm = self.vm
+        ns = ChainMap(fem_vars, vars(builtins))   # 先查 FEM 变量，再查内置函数
+
         try:
-            return eval(expr, {"__builtins__": {}}, namespace)
+            return eval(expr, {"__builtins__": builtins}, ns)
         except Exception as e:
             print(f"[runtime] ⚠️ eval 表达式失败 '{expr}': {e}")
             raise FEMVariableError(f"无法求值表达式: {expr}") from e
