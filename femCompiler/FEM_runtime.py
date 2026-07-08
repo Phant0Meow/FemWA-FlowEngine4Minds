@@ -133,12 +133,31 @@ class VarManager:
                     self.globals[first] = value
                 else:
                     ctx = _current_context.get()
+                    # ★★★ 诊断：看看 ctx 的状态和变量的归属 ★★★
+                    if first == 'wolves':  # 只追踪 wolves，避免日志爆炸
+                        print(f"[DIAG vm.set] 变量='{first}', 值={value!r}")
+                        print(f"[DIAG vm.set]   ctx存在? {ctx is not None}")
+                        if ctx:
+                            print(f"[DIAG vm.set]   ctx模块名: {getattr(ctx, 'module_name', '?')}")
+                            print(f"[DIAG vm.set]   '{first}' in ctx.locals? {'wolves' in ctx.locals}")
+                            print(f"[DIAG vm.set]   '{first}' in globals? {first in self.globals}")
+                            print(f"[DIAG vm.set]   globals[{first!r}] = {self.globals.get(first)!r}")
+                    
                     if ctx and first in ctx.locals:
+                        if first == 'wolves':
+                            print(f"[DIAG vm.set]   → 分支: ctx.locals 更新")
                         ctx.locals[first] = value
                     elif ctx and first in self.globals:
+                        if first == 'wolves':
+                            print(f"[DIAG vm.set]   → 分支: 从globals提升到ctx.locals")
                         ctx.locals[first] = value
                     else:
+                        if first == 'wolves':
+                            print(f"[DIAG vm.set]   → 分支: 直接写入globals")
                         self.globals[first] = value
+                    
+                    if first == 'wolves':
+                        print(f"[DIAG vm.set]   写入后 ctx.locals.get('wolves') = {ctx.locals.get('wolves')!r}" if ctx else "[DIAG vm.set]   写入后 globals['wolves'] = {self.globals.get('wolves')!r}")
                 return value
             else:
                 return self._resolve(path, create=False, set_value=value)
@@ -187,10 +206,24 @@ class VarManager:
 
         # 读取起点
         ctx = _current_context.get()
+        # ★★★ 诊断：追踪 wolves 的读取路径 ★★★
+        if path == 'wolves':
+            print(f"[DIAG _resolve] 读取 '{path}'")
+            print(f"[DIAG _resolve]   is_global={is_global}")
+            print(f"[DIAG _resolve]   ctx存在? {ctx is not None}")
+            if ctx:
+                print(f"[DIAG _resolve]   ctx模块名: {getattr(ctx, 'module_name', '?')}")
+                print(f"[DIAG _resolve]   '{first}' in ctx.locals? {first in ctx.locals}")
+            print(f"[DIAG _resolve]   '{first}' in globals? {first in self.globals}")
+        
         if is_global or not ctx or first not in ctx.locals:
             obj = self.globals.get(first)
+            if path == 'wolves':
+                print(f"[DIAG _resolve]   → 分支: 从 globals 读取, 值={obj!r}")
         else:
             obj = ctx.locals.get(first)
+            if path == 'wolves':
+                print(f"[DIAG _resolve]   → 分支: 从 ctx.locals 读取, 值={obj!r}")
 
         if obj is None and create:
             self.globals[first] = {}
@@ -1231,12 +1264,29 @@ class FEMRunner:
         
         # 求值迭代器
         iterable = self._eval_iterable_expr(iterable_expr)
+        # ── ★ 诊断 1：看传进来的 iterable 到底是什么 ──
+        print(f"[DIAG] ===== _run_for_loop 入口 =====")
+        print(f"[DIAG]   网关: {gateway_id}")
+        print(f"[DIAG]   循环变量: {var_name!r}")
+        print(f"[DIAG]   迭代表达式: {iterable_expr!r}")
+        print(f"[DIAG]   求值结果: {iterable!r}")
+        print(f"[DIAG]   求值结果类型: {type(iterable).__name__}")
+        if hasattr(iterable, '__len__'):
+            print(f"[DIAG]   长度: {len(iterable)}")
+
         if not isinstance(iterable, (list, tuple)):
+            # ── ★ 诊断 2：看类型检查和回退过程 ──
+            print(f"[DIAG] ---- 类型检查 ----")
+            print(f"[DIAG]   不是列表/元组，尝试从 vm 回退取值...")
+            print(f"[DIAG]   vm.has('{iterable_expr}')? {self.vm.has(iterable_expr)}")
             if self.vm.has(iterable_expr):
                 iterable = self.vm.get(iterable_expr)
+                print(f"[DIAG]   回退取值结果: {iterable!r}")
             if not isinstance(iterable, (list, tuple)):
                 print(f"[runtime]⚠️ 迭代器 '{iterable_expr}' 不是列表: {iterable}")
                 iterable = []
+                print(f"[DIAG]   已置为空列表")
+        print(f"[DIAG]   最终 iterable: {iterable!r}")
 
         # 收集所有从 gateway 出发的边
         all_out_edges = [e for e in flow.edges if e.source == gateway_id]
@@ -1268,10 +1318,6 @@ class FEMRunner:
         # ── 诊断日志 ──
         print(f"[runtime]   loop_entries = {[(e.target, e.condition) for e in loop_entries]}")
         print(f"[runtime]   exit_edge = {exit_edge.target if exit_edge else None}")
-            # 对于简单循环（for @wolf in wolves: -> wolf_discuss），
-            # wolf_discuss 执行完后会继续沿 flow 走到下一个节点，没有显式回边。
-            # 这种情况下没有单独的出口边，循环结束后自然走到 loop_entries 后的下一个节点。
-            # 所以 exit_edge 可以保持 None，后续我们手动找出口。
 
         if not loop_entries:
             raise ValueError(
@@ -1286,6 +1332,12 @@ class FEMRunner:
                 if e.source not in edge_map:
                     edge_map[e.source] = []
                 edge_map[e.source].append(e)
+
+        # ── ★ 诊断 3：确认迭代是否会发生 ──
+        print(f"[DIAG] ===== 开始迭代 =====")
+        print(f"[DIAG]   迭代次数: {len(iterable) if iterable else 0}")
+        if len(iterable) == 0:
+            print(f"[DIAG]   ⚠️ 迭代器为空，循环体不会执行！")
 
         # 执行每次迭代
         for i, item in enumerate(iterable):
@@ -1380,7 +1432,6 @@ class FEMRunner:
                         return e.target
         print(f"[runtime]   For 无出口，返回 None")
         return None
-
 
     async def _execute_path(self, flow, start: str,
                             stop_at: Set[str] = None,
@@ -1801,11 +1852,25 @@ class FEMRunner:
         # 一层薄薄的映射：只负责按 FEM 作用域规则提供变量值
         class FEMVarMap:
             def __getitem__(self, key):
-                try:
-                    return self.vm.get(key)   # 先局部后全局
-                except FEMVariableError:
-                    # 让 Python 的查找机制知道“这里没有这个变量”，从而自动去下一层找
-                    raise KeyError(key)
+                has = self.vm.has(key)
+                if has:
+                    val = self.vm.get(key)
+                    # ★★★ 诊断：看看 vm.get 走了哪个分支 ★★★
+                    if key == 'wolves':
+                        import contextvars
+                        ctx = _current_context.get()
+                        print(f"[DIAG FEMVarMap] 读取 '{key}'")
+                        print(f"[DIAG FEMVarMap]   vm.has('{key}') = {has}")
+                        print(f"[DIAG FEMVarMap]   vm.get('{key}') = {val!r}")
+                        print(f"[DIAG FEMVarMap]   ctx存在? {ctx is not None}")
+                        if ctx:
+                            print(f"[DIAG FEMVarMap]   ctx模块名: {getattr(ctx, 'module_name', '?')}")
+                            print(f"[DIAG FEMVarMap]   '{key}' in ctx.locals? {key in ctx.locals}")
+                            if key in ctx.locals:
+                                print(f"[DIAG FEMVarMap]   ctx.locals['{key}'] = {ctx.locals[key]!r}")
+                        print(f"[DIAG FEMVarMap]   vm.globals['{key}'] = {self.vm.globals.get(key)!r}")
+                    return val
+                raise KeyError(key)
             def __contains__(self, key):
                 return self.vm.has(key)
 
@@ -1958,7 +2023,9 @@ class FEMRunner:
             'caller_node': caller_node_id,
         })
 
-        with ExecutionContext(mod_name, module_max_steps=mod_max_steps) as ctx:
+        # ★ 获取母上下文，让模块能继承主流程的局部变量
+        mother_ctx = _current_context.get()
+        with ExecutionContext(mod_name, module_max_steps=mod_max_steps, mother=mother_ctx) as ctx:
             # 重置模块瞬态变量
             if mod.locals:
                 print(f"[runtime]📋 模块 {mod_name} 局部变量: {list(mod.locals.keys())}")
